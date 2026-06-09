@@ -1,0 +1,2 @@
+# Google Drive document pointers are virtual files and cannot be indexed by Git.
+*.gdoc
