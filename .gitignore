@@ -1,2 +1,13 @@
 # Google Drive document pointers are virtual files and cannot be indexed by Git.
 *.gdoc
+
+node_modules/
+node_modules.stale*/
+.tools/
+.pnpm-store/
+dist/
+coverage/
+.env
+.local-data/
+*.log
+tmp/

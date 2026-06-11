@@ -498,15 +498,54 @@ Save for later:
 
 ---
 
-## Suggested Repo/Container Split
+## Original Repo/Container Split
+
+This was the original coarse-grained proposal. The current architecture uses
+the monorepo and reusable feature-package model documented below and in
+`CURRENT_ARCHITECTURE.md`.
 
 ```text
 ll-replay-landing  = frontend UI
 ll-replay-orm      = database schema, migrations, queries
 ll-replay-i-am     = users, roles, permission sets
 ll-replay-media    = optional media processing/storage
-ll-replay-lib      = shared components/helpers
+ll-replay-lib      = original shared components/helpers proposal
 ```
+
+## Reusable Landing Feature Libraries
+
+Landing functionality should be modularized into one reusable library per
+scoring or display process:
+
+```text
+@ll-score/scoreboard
+@ll-score/rosters
+@ll-score/base-runners
+@ll-score/count-controls
+@ll-score/pitch-location
+@ll-score/hit-location
+@ll-score/field-diagram
+```
+
+The same libraries should be composed into live scoring, replay, public
+viewing, and team/game review screens. They receive typed state and emit typed
+user intents. They do not read JSONL, query PostgreSQL, or bypass Game Engine
+services.
+
+`pitch-location` and `hit-location` remain separate because they represent
+different observations:
+
+```text
+Pitch location = where the pitch crossed or traveled near the plate
+Hit location   = where the batted ball traveled or landed on the field
+```
+
+`field-diagram` contains shared coordinate and rendering primitives so the two
+location libraries and replay do not duplicate field geometry.
+
+These are libraries inside Landing, not independently deployed containers.
+Container boundaries remain at Landing, Game API, Storage API, Media API, and
+I-AM.
 
 ---
 

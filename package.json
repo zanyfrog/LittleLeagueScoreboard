@@ -1,0 +1,17 @@
+{
+  "name": "little-league-scoreboard",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.12.1",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "build": "pnpm -r build",
+    "test": "pnpm -r test",
+    "typecheck": "pnpm -r typecheck",
+    "check": "pnpm typecheck && pnpm test && pnpm build",
+    "iam:dev": "pnpm --filter @ll-score/iam-local-api dev",
+    "iam:start": "pnpm --filter @ll-score/iam-local-api start"
+  }
+}

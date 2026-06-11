@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": "../..",
+    "paths": {
+      "@ll-score/contracts": ["packages/contracts/src/index.ts"],
+      "@ll-score/iam-local": ["packages/iam-local/src/index.ts"]
+    }
+  }
+}

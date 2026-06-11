@@ -34,11 +34,14 @@ with the external `i-am` identity and authorization platform.
 | Statistics | Basic statistics derived from the event timeline |
 | Future hosting | AWS |
 | Future database | PostgreSQL |
+| Landing modularity | Separate reusable feature library for each scoring or display process |
 
 ## 3. Repository And Container Model
 
-Use individually versioned repositories. Every callable business capability
-must be available through both:
+Use one monorepo with independently versioned packages and deployable
+applications. A capability may move to its own repository later when ownership,
+security, release cadence, or scaling requires it. Every callable business
+capability must be available through both:
 
 1. A direct TypeScript library interface for in-process use.
 2. A versioned REST/OpenAPI interface for container or remote use.
@@ -72,6 +75,11 @@ ll-score-iam-adapter
 ll-score-landing
   Next.js PWA and browser-facing request layer
 
+ll-score-feature-libraries
+  Logical group for separately published or workspace-versioned landing
+  libraries: scoreboard, rosters, base runners, count controls, pitch location,
+  hit location, and field diagram primitives
+
 ll-score-local-runtime
   Local launcher that embeds the direct library implementations
 
@@ -81,6 +89,51 @@ ll-score-infrastructure
 
 Pure contract, documentation, UI, and infrastructure repositories do not need
 artificial business APIs. Domain, storage, media, and identity capabilities do.
+
+For version 1, these boundaries should be implemented in one monorepo. The
+names above describe independently versioned capability boundaries and possible
+future repository splits, not a requirement to create a separate Git
+repository immediately.
+
+### Landing Feature Packages
+
+Create these reusable TypeScript packages:
+
+```text
+@ll-score/scoreboard
+@ll-score/rosters
+@ll-score/base-runners
+@ll-score/count-controls
+@ll-score/pitch-location
+@ll-score/hit-location
+@ll-score/field-diagram
+```
+
+The packages separate landing functionality by process:
+
+- `scoreboard` displays score, inning, half-inning, status, count, and outs.
+- `rosters` displays team rosters, game lineups, batting order, positions,
+  bench state, batter, pitcher, and catcher.
+- `base-runners` displays occupied bases and runner movement in live scoring
+  and replay.
+- `count-controls` displays and captures balls, strikes, outs, and correction
+  intents.
+- `pitch-location` captures and displays pitch location independently from the
+  umpire's pitch result.
+- `hit-location` captures and displays where a ball was hit and supplies
+  normalized coordinates for replay.
+- `field-diagram` supplies shared field geometry and rendering primitives
+  without owning pitch, hit, runner, or scoring workflows.
+
+Each package contains pure models/selectors, application ports/adapters, React
+components/hooks, tests, and one deliberate public export surface. Landing
+composes the packages into pages. Feature packages never read or write storage.
+They receive typed data and emit typed callbacks or command intents that
+Landing submits to Game Engine services.
+
+Do not create a production container per visual feature. All feature packages
+run inside `ll-score-landing`; authoritative commands and reads continue
+through the Game Engine library or `ll-score-game-api`.
 
 ## 4. Canonical Dual Interface
 
@@ -141,6 +194,10 @@ Browser
       -> media library
       -> local I-AM adapter
 ```
+
+The landing/server process composes the reusable feature packages. A page may
+use several feature packages, but page code must not duplicate their state
+mapping, coordinate conversion, interaction, or display logic.
 
 The local launcher:
 
@@ -381,6 +438,13 @@ Assignments:
 The local adapter implements this contract for development. Production must
 fail closed unless the external `i-am` service can provide current
 authorization decisions.
+
+The local adapter is implemented in `@ll-score/iam-local`, with shared contracts
+in `@ll-score/contracts`, an HTTP consumer in `@ll-score/iam-client`, and the
+optional `ll-score-iam-local-api` adapter. It can run before game data
+processing because identity and policy records are independently owned. Game
+Engine and storage integrate later by submitting stable resource/action/scope
+authorization requests.
 
 ## 10. Event-Driven Game Model
 
@@ -702,18 +766,24 @@ Required scenarios:
 - Public APIs do not reveal names, media, unpublished games, or protected
   location and membership information.
 - Responsive and accessible behavior works on phone, tablet, and desktop.
+- Every feature package has isolated model, interaction, rendering,
+  accessibility, and responsive tests.
+- The same scoreboard, roster, base-runner, pitch-location, and hit-location
+  components can render live state and replay state through typed inputs.
+- Feature packages do not import storage adapters or Next.js server modules.
 
 ## 19. Implementation Phases
 
-1. Create shared contracts, interface standards, versioning rules, and the
-   conformance harness.
+1. Create shared contracts, interface standards, feature-package boundaries,
+   versioning rules, and the conformance harness.
 2. Implement JSONL storage as a direct package and a thin API container.
 3. Implement people, profiles, memberships, permission assignments, and
    historical roster snapshots.
 4. Implement the game engine, event timeline, projections, undo, and
    corrections as a package and API container.
 5. Build the local runtime with exclusive data-directory ownership.
-6. Build the Next.js PWA and the routes listed in this document.
+6. Build the reusable landing feature packages, then compose them into the
+   Next.js PWA routes listed in this document.
 7. Add media, import/export, backup, restore, and recovery.
 8. Add I-AM integration and verify both embedded and container modes.
 9. Add PostgreSQL, AWS infrastructure, and production hardening.

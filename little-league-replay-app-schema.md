@@ -2661,6 +2661,39 @@ This lets the scorer start quickly and fill in more detail later if needed.
 
 # Suggested Repository/Container Split
 
+## Reusable landing feature libraries
+
+The landing experience should not be implemented as one large page-specific
+component library. Separate each reusable scoring or display process:
+
+```text
+@ll-score/scoreboard       score, inning, game status, count, and outs display
+@ll-score/rosters          rosters, lineups, positions, bench, batter, pitcher
+@ll-score/base-runners     occupied bases, movements, corrections, replay state
+@ll-score/count-controls   balls, strikes, outs, fast entry, correction intents
+@ll-score/pitch-location   3x3 zone and special pitch-location areas
+@ll-score/hit-location     field-map hit location and normalized coordinates
+@ll-score/field-diagram    shared field geometry and rendering primitives
+```
+
+Each package should expose pure models/selectors separately from React
+components. It receives typed service results and emits typed callbacks or
+command intents. It must not access the filesystem, JSONL, PostgreSQL, or
+internal repositories.
+
+The packages are reused by the live scoring and replay screens. For example,
+`@ll-score/base-runners` renders current `base_state_snapshots` during live
+scoring and `baseStateBefore`/`baseStateAfter` during replay. The Game Engine
+remains authoritative for applying events and corrections.
+
+Pitch location and hit location must remain separate packages. Pitch location
+does not determine the umpire's call, and hit location does not determine the
+official scoring result. Shared coordinate behavior belongs in
+`@ll-score/field-diagram`.
+
+Do not create one container per feature package. The feature packages run in
+the Landing container and use the Game Engine library/API for reads and writes.
+
 ## `ll-replay-landing`
 
 Frontend user interface.
@@ -2713,7 +2746,9 @@ Responsibilities:
 
 ## `ll-replay-lib`
 
-Shared components/utilities.
+Original shared components/utilities proposal. The current architecture
+supersedes this single broad library with the reusable feature packages listed
+above plus `@ll-score/ui`.
 
 Responsibilities:
 
