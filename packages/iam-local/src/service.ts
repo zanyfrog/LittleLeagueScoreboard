@@ -1,5 +1,5 @@
 import { createHash, randomBytes, randomUUID } from "node:crypto";
-import { hash, verify, Algorithm } from "@node-rs/argon2";
+import { hash, verify } from "@node-rs/argon2";
 import type {
   Actor,
   AuthMe,
@@ -320,7 +320,7 @@ export class LocalIamService implements IamService {
       username,
       displayName: input.displayName.trim(),
       passwordHash: await hash(input.password, {
-        algorithm: Algorithm.Argon2id,
+        algorithm: 2,
         memoryCost: 19456,
         timeCost: 2,
         parallelism: 1

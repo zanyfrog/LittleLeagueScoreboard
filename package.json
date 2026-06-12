@@ -11,6 +11,10 @@
     "test": "pnpm -r test",
     "typecheck": "pnpm -r typecheck",
     "check": "pnpm typecheck && pnpm test && pnpm build",
+    "seed:sample": "pnpm --filter @ll-score/testing seed",
+    "landing:dev": "pnpm --filter ll-score-landing dev",
+    "landing:build": "pnpm --filter ll-score-landing build",
+    "landing:start": "pnpm --filter ll-score-landing start",
     "iam:dev": "pnpm --filter @ll-score/iam-local-api dev",
     "iam:start": "pnpm --filter @ll-score/iam-local-api start"
   }

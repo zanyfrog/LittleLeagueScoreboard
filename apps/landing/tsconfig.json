@@ -1,0 +1,27 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "allowJs": true,
+    "noEmit": true,
+    "jsx": "preserve",
+    "incremental": true,
+    "isolatedModules": true,
+    "resolveJsonModule": true,
+    "plugins": [{"name": "next"}],
+    "baseUrl": "../..",
+    "paths": {
+      "@/*": ["apps/landing/*"],
+      "@ll-score/contracts": ["packages/contracts/src/index.ts"],
+      "@ll-score/game-engine": ["packages/game-engine/src/index.ts"],
+      "@ll-score/storage-core": ["packages/storage-core/src/index.ts"],
+      "@ll-score/storage-jsonl": ["packages/storage-jsonl/src/index.ts"],
+      "@ll-score/iam-local": ["packages/iam-local/src/index.ts"],
+      "@ll-score/scoreboard": ["packages/scoreboard/src/index.ts"],
+      "@ll-score/rosters": ["packages/rosters/src/index.ts"],
+      "@ll-score/base-runners": ["packages/base-runners/src/index.ts"],
+      "@ll-score/field-diagram": ["packages/field-diagram/src/index.ts"]
+    }
+  },
+  "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules"]
+}

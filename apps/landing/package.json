@@ -1,0 +1,48 @@
+{
+  "name": "ll-score-landing",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -H 127.0.0.1",
+    "build": "next build",
+    "start": "next start -H 127.0.0.1",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@ll-score/base-runners": "workspace:*",
+    "@ll-score/contracts": "workspace:*",
+    "@ll-score/count-controls": "workspace:*",
+    "@ll-score/field-diagram": "workspace:*",
+    "@ll-score/game-engine": "workspace:*",
+    "@ll-score/hit-location": "workspace:*",
+    "@ll-score/iam-local": "workspace:*",
+    "@ll-score/pitch-location": "workspace:*",
+    "@ll-score/rosters": "workspace:*",
+    "@ll-score/scoreboard": "workspace:*",
+    "@ll-score/storage-jsonl": "workspace:*",
+    "next": "^15.3.4",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0"
+  },
+  "dependenciesMeta": {
+    "@ll-score/base-runners": {"injected": true},
+    "@ll-score/contracts": {"injected": true},
+    "@ll-score/count-controls": {"injected": true},
+    "@ll-score/field-diagram": {"injected": true},
+    "@ll-score/game-engine": {"injected": true},
+    "@ll-score/hit-location": {"injected": true},
+    "@ll-score/iam-local": {"injected": true},
+    "@ll-score/pitch-location": {"injected": true},
+    "@ll-score/rosters": {"injected": true},
+    "@ll-score/scoreboard": {"injected": true},
+    "@ll-score/storage-jsonl": {"injected": true}
+  },
+  "devDependencies": {
+    "@types/node": "^22.15.32",
+    "@types/react": "^19.1.8",
+    "@types/react-dom": "^19.1.6",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}

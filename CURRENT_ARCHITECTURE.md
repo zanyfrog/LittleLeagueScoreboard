@@ -210,6 +210,16 @@ Landing uses the following application-facing services from
 These may be exposed through one `GameEngine` facade while remaining separate
 internal capability interfaces.
 
+The first Game Engine implementation is available in `@ll-score/game-engine`.
+It currently provides authorized roster snapshots, initial and current
+lineups, atomic defensive-position changes, ordered scoring events with runner
+movements, and replay reconstruction over `@ll-score/storage-core`. Integration
+tests exercise it with `@ll-score/storage-jsonl` and `@ll-score/iam-local`.
+
+`@ll-score/testing` supplies the synthetic development league and JSONL seed
+loader. It currently creates six teams, eleven players per team, three games,
+and complete game-roster snapshots without using real child or family data.
+
 ## 8A. Landing Feature Libraries
 
 Landing functionality is split into separately versionable feature libraries.

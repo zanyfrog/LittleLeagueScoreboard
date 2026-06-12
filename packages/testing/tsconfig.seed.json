@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "baseUrl": "../..",
+    "paths": {
+      "@ll-score/contracts": ["packages/contracts/src/index.ts"],
+      "@ll-score/storage-core": ["packages/storage-core/src/index.ts"],
+      "@ll-score/storage-jsonl": ["packages/storage-jsonl/src/index.ts"]
+    }
+  }
+}

@@ -44,6 +44,26 @@ pnpm build
 The local I-AM implementation is documented in
 `docs/IAM_IMPLEMENTATION.md`.
 
+## Sample League
+
+Load the fictional six-team development league into the default local JSONL
+data directory:
+
+```powershell
+pnpm seed:sample
+```
+
+The dataset contains 66 players, three games, and complete 11-player roster
+snapshots for both teams in every game. Set `LL_SCORE_DATA_DIR` before running
+the command to select another directory.
+
+## Plate Appearance Console
+
+The landing application can start a batter/pitcher matchup and record pitch
+type, location, call, descriptive notes, and ball-in-play results. Balls,
+strikes, outs, and the active matchup are projected from the immutable event
+timeline so the plate appearance is available during replay.
+
 ## Git Synchronization
 
 ```powershell
