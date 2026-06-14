@@ -88,7 +88,20 @@ function applyPositionChanges(
   }
 }
 
-function applyMovement(state: BaseState, movement: RunnerMovement): BaseState {
+function runnerDisplayLabel(entry: GameRosterEntry | undefined): string {
+  if (!entry) return "Unknown runner";
+  const nameParts = entry.displayNameSnapshot.trim().split(/\s+/);
+  const firstName = nameParts[0] ?? entry.displayNameSnapshot;
+  return entry.jerseyNumberSnapshot
+    ? `#${entry.jerseyNumberSnapshot} ${firstName}`
+    : firstName;
+}
+
+function applyMovement(
+  state: BaseState,
+  movement: RunnerMovement,
+  rosterByPlayer: ReadonlyMap<string, GameRosterEntry>
+): BaseState {
   const next = { ...state };
   for (const base of ["first", "second", "third"] as const) {
     if (next[base]?.runnerId === movement.runnerId) next[base] = null;
@@ -96,7 +109,7 @@ function applyMovement(state: BaseState, movement: RunnerMovement): BaseState {
   if (movement.outcome === "SAFE") {
     const runner = {
       runnerId: movement.runnerId,
-      displayLabel: movement.runnerId
+      displayLabel: runnerDisplayLabel(rosterByPlayer.get(movement.runnerId))
     };
     if (movement.to === "FIRST") next.first = runner;
     if (movement.to === "SECOND") next.second = runner;
@@ -118,6 +131,9 @@ export function projectGame(
   roster: GameRosterEntry[],
   events: GameEvent[]
 ): ProjectedGame {
+  const rosterByPlayer = new Map(
+    roster.map((entry) => [entry.playerId, entry])
+  );
   const alignments = new Map(
     initialAlignments(roster).map((alignment) => [
       alignment.teamId,
@@ -137,7 +153,7 @@ export function projectGame(
     }
     applyPositionChanges(alignments, event.positionChanges);
     for (const movement of event.runnerMovements) {
-      baseState = applyMovement(baseState, movement);
+      baseState = applyMovement(baseState, movement, rosterByPlayer);
     }
     frames.push({
       eventId: event.eventId,

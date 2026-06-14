@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import type {
   Game,
   GameRosterEntry,
+  PlayerProfile,
   PlayerPosition
 } from "@ll-score/contracts";
 import type { StorageRepositories } from "@ll-score/storage-core";
@@ -30,7 +31,8 @@ function displayLabel(entry: GameRosterEntry): string {
 
 function lineupPlayer(
   entry: GameRosterEntry,
-  position: PlayerPosition
+  position: PlayerPosition,
+  profile?: PlayerProfile | null
 ): LineupPlayer {
   return {
     playerId: entry.playerId,
@@ -42,7 +44,10 @@ function lineupPlayer(
     isBench: position === "BENCH",
     isBullpen: position === "BULLPEN",
     isCurrentPitcher: position === "P",
-    isCurrentCatcher: position === "C"
+    isCurrentCatcher: position === "C",
+    bats: profile?.bats === "UNKNOWN" ? "RIGHT" : profile?.bats ?? "RIGHT",
+    throws:
+      profile?.throws === "UNKNOWN" ? "RIGHT" : profile?.throws ?? "RIGHT"
   };
 }
 
@@ -83,13 +88,15 @@ async function buildLineup(
     gameId,
     teamId,
     teamName: team.name,
-    players: entries
-      .map((entry) =>
+    players: (await Promise.all(
+      entries.map(async (entry) =>
         lineupPlayer(
           entry,
-          positions.get(entry.playerId) ?? entry.initialPosition
+          positions.get(entry.playerId) ?? entry.initialPosition,
+          await storage.players.getById(entry.playerId)
         )
       )
+    ))
       .sort(
         (left, right) =>
           (left.battingOrder ?? Number.MAX_SAFE_INTEGER) -
@@ -135,7 +142,13 @@ export function createRosterService(
               primaryPosition:
                 membership.primaryPosition ??
                 player?.primaryPosition ??
-                ("UNKNOWN" as const)
+                ("UNKNOWN" as const),
+              bats:
+                player?.bats === "UNKNOWN" ? "RIGHT" : player?.bats ?? "RIGHT",
+              throws:
+                player?.throws === "UNKNOWN"
+                  ? "RIGHT"
+                  : player?.throws ?? "RIGHT"
             };
           })
       );

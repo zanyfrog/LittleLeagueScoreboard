@@ -220,6 +220,7 @@ describe("Game Engine with JSONL and local I-AM", () => {
       expect(replay.eventVersion).toBe(2);
       expect(replay.frames).toHaveLength(2);
       expect(replay.currentBaseState.first?.runnerId).toBe("p1");
+      expect(replay.currentBaseState.first?.displayLabel).toBe("#1 Alex");
       expect((await storage.audit.list("game-1"))).toHaveLength(3);
 
       await expect(

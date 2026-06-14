@@ -16,8 +16,8 @@ export type Person = z.infer<typeof personSchema>;
 export const playerProfileSchema = z.object({
   playerId: z.string().min(1),
   personId: z.string().min(1),
-  bats: z.enum(["LEFT", "RIGHT", "SWITCH", "UNKNOWN"]).default("UNKNOWN"),
-  throws: z.enum(["LEFT", "RIGHT", "UNKNOWN"]).default("UNKNOWN"),
+  bats: z.enum(["LEFT", "RIGHT", "SWITCH", "UNKNOWN"]).default("RIGHT"),
+  throws: z.enum(["LEFT", "RIGHT", "UNKNOWN"]).default("RIGHT"),
   primaryPosition: playerPositionSchema.optional(),
   ...utcAuditFields
 });

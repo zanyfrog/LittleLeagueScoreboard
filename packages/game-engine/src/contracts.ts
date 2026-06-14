@@ -9,6 +9,7 @@ import type {
   Membership,
   PlayerPosition,
   ReplayFrame,
+  ReplayMediaAttachment,
   RunnerMovement
 } from "@ll-score/contracts";
 import type { StorageRepositories } from "@ll-score/storage-core";
@@ -30,6 +31,8 @@ export interface TeamRosterPlayer {
   displayName: string;
   jerseyNumber?: string;
   primaryPosition: PlayerPosition;
+  bats: "LEFT" | "RIGHT" | "SWITCH" | "UNKNOWN";
+  throws: "LEFT" | "RIGHT" | "UNKNOWN";
 }
 
 export interface TeamRoster {
@@ -50,6 +53,8 @@ export interface LineupPlayer {
   isBullpen: boolean;
   isCurrentPitcher: boolean;
   isCurrentCatcher: boolean;
+  bats: "LEFT" | "RIGHT" | "SWITCH" | "UNKNOWN";
+  throws: "LEFT" | "RIGHT" | "UNKNOWN";
 }
 
 export interface GameLineup {
@@ -105,18 +110,26 @@ export interface RecordScoringEventInput {
     | "HalfInningStarted"
     | "PlateAppearanceStarted"
     | "PitchRecorded"
+    | "ScorekeeperCommentRecorded"
     | "BallPutInPlay"
     | "FieldingActionRecorded"
     | "RunnerMoved"
     | "RunnerOut"
+    | "OutCountAdjusted"
     | "RunScored"
     | "PitcherChanged"
+    | "EventReversed"
     | "GameFinalized"
   >;
   payload?: Record<string, unknown>;
   runnerMovements?: RunnerMovement[];
+  mediaAttachments?: ReplayMediaAttachment[];
   expectedVersion?: number;
   occurredAtUtc?: string;
+  reversesEventId?: string;
+  correctsEventId?: string;
+  correctionNote?: string;
+  allowFinalizedGameEdit?: boolean;
 }
 
 export interface ScoringResult {

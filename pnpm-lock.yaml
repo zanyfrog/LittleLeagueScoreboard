@@ -296,6 +296,9 @@ importers:
       '@ll-score/contracts':
         specifier: workspace:*
         version: link:../contracts
+      '@ll-score/count-controls':
+        specifier: workspace:*
+        version: link:../count-controls
     devDependencies:
       typescript:
         specifier: ^5.8.3

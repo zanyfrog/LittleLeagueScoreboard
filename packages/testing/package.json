@@ -15,7 +15,8 @@
     "build": "tsc -p tsconfig.json",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
-    "seed": "tsx --tsconfig tsconfig.seed.json src/seed-sample-cli.ts"
+    "seed": "tsx --tsconfig tsconfig.seed.json src/seed-sample-cli.ts",
+    "seed:all-star": "tsx --tsconfig tsconfig.seed.json src/seed-all-star-cli.ts"
   },
   "dependencies": {
     "@ll-score/contracts": "workspace:*",

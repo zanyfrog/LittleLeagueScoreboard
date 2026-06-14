@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import type { GameEvent } from "@ll-score/contracts";
-import { projectGameFlow, projectPlateAppearance } from "./index.js";
+import {
+  activeGameEvents,
+  projectGameFlow,
+  projectPlateAppearance
+} from "./index.js";
 
 function event(
   eventOrder: number,
@@ -20,6 +24,21 @@ function event(
     runnerMovements: []
   };
 }
+
+describe("activeGameEvents", () => {
+  it("uses a corrected replacement and suppresses the original event", () => {
+    const original = event(1, "ScorekeeperCommentRecorded", {
+      comment: "Original"
+    });
+    const correction = {
+      ...event(2, "RunScored", { reason: "Corrected action" }),
+      correctsEventId: original.eventId,
+      correctionNote: "Changed action"
+    };
+
+    expect(activeGameEvents([original, correction])).toEqual([correction]);
+  });
+});
 
 describe("projectPlateAppearance", () => {
   it("tracks the count and closes the appearance on strike three", () => {
@@ -57,6 +76,67 @@ describe("projectPlateAppearance", () => {
     expect(state.active).toBe(true);
   });
 
+  it("removes a reversed pitch from the count", () => {
+    const pitch = event(2, "PitchRecorded", { call: "BALL" });
+    const reversal = {
+      ...event(3, "EventReversed"),
+      reversesEventId: pitch.eventId
+    };
+    const state = projectPlateAppearance([
+      event(1, "PlateAppearanceStarted"),
+      pitch,
+      reversal
+    ]);
+    expect(state.balls).toBe(0);
+    expect(state.pitchNumber).toBe(0);
+  });
+
+  it("uses the recorded result rather than location for the count", () => {
+    const state = projectPlateAppearance([
+      event(1, "PlateAppearanceStarted"),
+      event(2, "PitchRecorded", {
+        actionId: "pitch-1",
+        source: "location",
+        locationZone: 5
+      }),
+      event(3, "FieldingActionRecorded", {
+        actionId: "pitch-1",
+        source: "pitch-result",
+        countsTowardPitch: true,
+        result: "BALL"
+      })
+    ]);
+
+    expect(state).toMatchObject({
+      balls: 1,
+      strikes: 0,
+      pitchNumber: 1,
+      active: true
+    });
+  });
+
+  it("closes the appearance when result-driven consequences are recorded", () => {
+    const walk = projectPlateAppearance([
+      event(1, "PlateAppearanceStarted"),
+      event(2, "FieldingActionRecorded", {
+        countsTowardPitch: true,
+        result: "BALL"
+      }),
+      event(3, "RunnerMoved", { reason: "walk" })
+    ]);
+    const strikeout = projectPlateAppearance([
+      event(1, "PlateAppearanceStarted"),
+      event(2, "FieldingActionRecorded", {
+        countsTowardPitch: true,
+        result: "SWINGING_STRIKE"
+      }),
+      event(3, "RunnerOut", { reason: "strikeout" })
+    ]);
+
+    expect(walk.active).toBe(false);
+    expect(strikeout.active).toBe(false);
+  });
+
   it("keeps separate batting-order cursors across half innings", () => {
     const game = {
       gameId: "game-1",
@@ -92,5 +172,56 @@ describe("projectPlateAppearance", () => {
       event(6, "HalfInningStarted", { inning: 2, half: "TOP" })
     ];
     expect(projectGameFlow(game, roster, events).nextBatterId).toBe("a2");
+  });
+
+  it("does not advance the batter for a post-play runner out", () => {
+    const game = {
+      gameId: "game-1",
+      homeTeamId: "home",
+      awayTeamId: "away",
+      timezoneName: "America/New_York",
+      status: "IN_PROGRESS" as const,
+      createdAtUtc: "2026-06-12T00:00:00.000Z"
+    };
+    const roster = [
+      {
+        gameId: "game-1", teamId: "away", playerId: "a1",
+        displayNameSnapshot: "Away One", teamNameSnapshot: "Away",
+        battingOrder: 1, initialPosition: "P" as const, isPresent: true
+      },
+      {
+        gameId: "game-1", teamId: "away", playerId: "a2",
+        displayNameSnapshot: "Away Two", teamNameSnapshot: "Away",
+        battingOrder: 2, initialPosition: "C" as const, isPresent: true
+      }
+    ];
+    const events = [
+      event(1, "PlateAppearanceStarted", {
+        battingTeamId: "away",
+        batterId: "a1"
+      }),
+      event(2, "RunnerOut", {
+        reason: "pickoff",
+        completesPlateAppearance: false
+      })
+    ];
+
+    const flow = projectGameFlow(game, roster, events);
+    expect(flow.outs).toBe(1);
+    expect(flow.nextBatterId).toBe("a1");
+    expect(flow.active).toBe(true);
+  });
+
+  it("uses an explicit out-count adjustment for scorer corrections", () => {
+    const state = projectPlateAppearance([
+      event(1, "RunnerOut"),
+      event(2, "RunnerOut"),
+      event(3, "OutCountAdjusted", {
+        outs: 1,
+        reason: "scorekeeper correction"
+      })
+    ]);
+
+    expect(state.outs).toBe(1);
   });
 });

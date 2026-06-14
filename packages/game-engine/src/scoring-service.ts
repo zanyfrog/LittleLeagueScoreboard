@@ -178,7 +178,9 @@ export function createScoringService(
         id: input.gameId
       });
       const game = await requireGame(storage, input.gameId);
-      if (game.status === "FINAL") throw new Error("GAME_ALREADY_FINAL");
+      if (game.status === "FINAL" && !input.allowFinalizedGameEdit) {
+        throw new Error("GAME_ALREADY_FINAL");
+      }
       const actualVersion = await storage.gameEvents.getVersion(input.gameId);
       const expectedVersion = input.expectedVersion ?? actualVersion;
       const occurredAtUtc = input.occurredAtUtc ?? now().toISOString();
@@ -192,7 +194,11 @@ export function createScoringService(
         actorId: context.actorId,
         payload: input.payload ?? {},
         positionChanges: [],
-        runnerMovements: input.runnerMovements ?? []
+        runnerMovements: input.runnerMovements ?? [],
+        mediaAttachments: input.mediaAttachments,
+        reversesEventId: input.reversesEventId,
+        correctsEventId: input.correctsEventId,
+        correctionNote: input.correctionNote
       };
       return appendEvent(
         dependencies,

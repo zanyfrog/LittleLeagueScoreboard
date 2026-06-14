@@ -5,14 +5,19 @@ import type { GameLineup, LineupPlayer } from "@ll-score/game-engine";
 import type { PlayerPosition } from "@ll-score/contracts";
 
 export function Lineup({
-  lineup, positions, disabled, draggable, onChange, onReorder
+  lineup, positions, disabled, draggable, onChange, onReorder, onHandednessChange
 }: {
   lineup: GameLineup;
   positions: PlayerPosition[];
   disabled: boolean;
   draggable: boolean;
   onChange: (teamId: string, playerId: string, position: PlayerPosition) => void;
-  onReorder: (teamId: string, playerIds: string[]) => void;
+  onReorder: (teamId: string, playerIds: string[]) => Promise<void>;
+  onHandednessChange: (
+    playerId: string,
+    bats: "LEFT" | "RIGHT" | "SWITCH",
+    throws: "LEFT" | "RIGHT"
+  ) => Promise<void>;
 }) {
   const [players, setPlayers] = useState(lineup.players);
   const [draggedId, setDraggedId] = useState("");
@@ -27,7 +32,7 @@ export function Lineup({
     next.splice(to, 0, moved as LineupPlayer);
     setPlayers(next);
     setDraggedId("");
-    onReorder(lineup.teamId, next.map((player) => player.playerId));
+    void onReorder(lineup.teamId, next.map((player) => player.playerId));
   }
 
   return (
@@ -45,9 +50,24 @@ export function Lineup({
           >
             <span className="order">{draggable ? "::" : index + 1}</span>
             <strong><small>{index + 1}.</small> {player.displayLabel}</strong>
-            <select aria-label={`${player.displayLabel} position`} value={player.position} disabled={disabled} onChange={(event) => onChange(lineup.teamId, player.playerId, event.target.value as PlayerPosition)}>
-              {positions.map((position) => <option key={position}>{position}</option>)}
-            </select>
+            <div className="player-attributes">
+              <select aria-label={`${player.displayLabel} position`} value={player.position} disabled={disabled} onChange={(event) => onChange(lineup.teamId, player.playerId, event.target.value as PlayerPosition)}>
+                {positions.map((position) => <option key={position}>{position}</option>)}
+              </select>
+              <label>Bats
+                <select aria-label={`${player.displayLabel} batting stance`} value={player.bats === "UNKNOWN" ? "RIGHT" : player.bats} disabled={disabled} onChange={(event) => void onHandednessChange(player.playerId, event.target.value as "LEFT" | "RIGHT" | "SWITCH", player.throws === "UNKNOWN" ? "RIGHT" : player.throws)}>
+                  <option value="RIGHT">R</option>
+                  <option value="LEFT">L</option>
+                  <option value="SWITCH">S</option>
+                </select>
+              </label>
+              <label>Throws
+                <select aria-label={`${player.displayLabel} throwing arm`} value={player.throws === "UNKNOWN" ? "RIGHT" : player.throws} disabled={disabled} onChange={(event) => void onHandednessChange(player.playerId, player.bats === "UNKNOWN" ? "RIGHT" : player.bats, event.target.value as "LEFT" | "RIGHT")}>
+                  <option value="RIGHT">R</option>
+                  <option value="LEFT">L</option>
+                </select>
+              </label>
+            </div>
           </div>
         ))}
       </div>

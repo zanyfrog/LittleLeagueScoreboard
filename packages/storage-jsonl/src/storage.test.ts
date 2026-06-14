@@ -258,4 +258,52 @@ describe("JSONL storage", () => {
       await restored.close();
     }
   });
+
+  it("persists a game-specific batting order across restart", async () => {
+    const root = await mkdtemp(join(tmpdir(), "ll-score-storage-"));
+    const first = createJsonlStorage(root);
+    await first.initialize();
+    await first.rosters.replaceGameRoster(
+      "game-lineup",
+      [
+        {
+          gameId: "game-lineup",
+          teamId: "team-a",
+          playerId: "player-2",
+          displayNameSnapshot: "Second Player",
+          teamNameSnapshot: "Falcons",
+          battingOrder: 1,
+          initialPosition: "C",
+          isPresent: true
+        },
+        {
+          gameId: "game-lineup",
+          teamId: "team-a",
+          playerId: "player-1",
+          displayNameSnapshot: "First Player",
+          teamNameSnapshot: "Falcons",
+          battingOrder: 2,
+          initialPosition: "P",
+          isPresent: true
+        }
+      ],
+      "scorer-1"
+    );
+    await first.close();
+
+    const reopened = createJsonlStorage(root);
+    await reopened.initialize();
+    try {
+      const saved = await reopened.rosters.getGameRoster("game-lineup");
+      expect(
+        [...saved]
+          .sort((left, right) =>
+            (left.battingOrder ?? 0) - (right.battingOrder ?? 0)
+          )
+          .map((entry) => entry.playerId)
+      ).toEqual(["player-2", "player-1"]);
+    } finally {
+      await reopened.close();
+    }
+  });
 });

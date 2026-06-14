@@ -4,6 +4,9 @@ import { useCallback, useEffect, useState } from "react";
 import type { GameSummary } from "@ll-score/game-engine";
 import type { Team } from "@ll-score/contracts";
 import { GameWorkspace } from "./game-workspace";
+import { TeamEditor } from "./team-editor";
+
+const activeGameStorageKey = "ll-score-active-game-id";
 
 export function Dashboard() {
   const [games, setGames] = useState<GameSummary[]>([]);
@@ -13,6 +16,7 @@ export function Dashboard() {
   const [homeTeamId, setHomeTeamId] = useState("");
   const [opponentName, setOpponentName] = useState("");
   const [opponentPlayers, setOpponentPlayers] = useState("");
+  const [editingTeam, setEditingTeam] = useState(false);
   const [error, setError] = useState("");
 
   const loadSetup = useCallback(async () => {
@@ -24,6 +28,17 @@ export function Dashboard() {
     const teamsData = await teamsResponse.json();
     setGames(gamesData.games);
     setTeams(teamsData.teams);
+    setSelected((value) => {
+      if (value && gamesData.games.some((game: GameSummary) => game.gameId === value)) {
+        return value;
+      }
+      const savedGameId = window.localStorage.getItem(activeGameStorageKey) ?? "";
+      return gamesData.games.some(
+        (game: GameSummary) => game.gameId === savedGameId
+      )
+        ? savedGameId
+        : "";
+    });
     setAwayTeamId((value) => value || teamsData.teams[0]?.teamId || "");
     setHomeTeamId((value) => value || teamsData.teams[1]?.teamId || "");
   }, []);
@@ -59,7 +74,18 @@ export function Dashboard() {
     if (!response.ok) throw new Error(await response.text());
     const { gameId } = await response.json();
     await loadSetup();
+    window.localStorage.setItem(activeGameStorageKey, gameId);
     setSelected(gameId);
+  }
+
+  function openGame(gameId: string) {
+    window.localStorage.setItem(activeGameStorageKey, gameId);
+    setSelected(gameId);
+  }
+
+  function changeMatchup() {
+    window.localStorage.removeItem(activeGameStorageKey);
+    setSelected("");
   }
 
   return (
@@ -77,7 +103,21 @@ export function Dashboard() {
         <section className="pregame-builder">
           <div className="section-heading">
             <div><p className="eyebrow">Pregame</p><h2>Choose Two Teams</h2></div>
+            <button
+              className="edit-team-button"
+              onClick={() => setEditingTeam((value) => !value)}
+            >
+              {editingTeam ? "Close Editor" : "Edit Team"}
+            </button>
           </div>
+          {editingTeam ? (
+            <TeamEditor
+              teams={teams}
+              initialTeamId={awayTeamId}
+              onSaved={loadSetup}
+              onClose={() => setEditingTeam(false)}
+            />
+          ) : null}
           <div className="team-picker">
             <label>Away team
               <select value={awayTeamId} onChange={(event) => setAwayTeamId(event.target.value)}>
@@ -103,15 +143,16 @@ export function Dashboard() {
           <div className="existing-games">
             <h3>Or continue a matchup</h3>
             {games.map((game) => (
-              <button key={game.gameId} onClick={() => setSelected(game.gameId)}>
-                {game.awayTeamName} at {game.homeTeamName}
+              <button key={game.gameId} onClick={() => openGame(game.gameId)}>
+                <span>{game.awayTeamName} at {game.homeTeamName}</span>
+                <small>{game.status.replace("_", " ")}</small>
               </button>
             ))}
           </div>
         </section>
       ) : (
         <>
-          <button className="back-button" onClick={() => setSelected("")}>Change matchup</button>
+          <button className="back-button" onClick={changeMatchup}>Change matchup</button>
           <GameWorkspace gameId={selected} />
         </>
       )}

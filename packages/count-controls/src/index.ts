@@ -31,6 +31,20 @@ export interface PlateAppearanceState extends CountState {
 
 export const emptyCount: CountState = { balls: 0, strikes: 0, outs: 0 };
 
+export function activeGameEvents(events: GameEvent[]): GameEvent[] {
+  const suppressed = new Set(
+    events
+      .map((event) => event.reversesEventId ?? event.correctsEventId)
+      .filter((eventId): eventId is string => Boolean(eventId))
+  );
+  return events.filter(
+    (event) =>
+      event.eventType !== "EventReversed" &&
+      event.eventType !== "EventCorrected" &&
+      !suppressed.has(event.eventId)
+  );
+}
+
 export function projectPlateAppearance(
   events: GameEvent[]
 ): PlateAppearanceState {
@@ -41,8 +55,9 @@ export function projectPlateAppearance(
     inning: 1,
     half: "TOP"
   };
+  const locationActionIds = new Set<string>();
 
-  for (const event of [...events].sort(
+  for (const event of activeGameEvents(events).sort(
     (left, right) => left.eventOrder - right.eventOrder
   )) {
     if (event.eventType === "HalfInningStarted") {
@@ -64,6 +79,9 @@ export function projectPlateAppearance(
     if (event.eventType === "PitchRecorded" && state.active) {
       const call = event.payload.call as PitchCall | undefined;
       state.pitchNumber += 1;
+      if (event.payload.actionId) {
+        locationActionIds.add(String(event.payload.actionId));
+      }
       if (call === "BALL") state.balls += 1;
       if (call === "CALLED_STRIKE" || call === "SWINGING_STRIKE") {
         state.strikes += 1;
@@ -78,8 +96,41 @@ export function projectPlateAppearance(
         state.active = false;
       }
     }
+    if (
+      event.eventType === "FieldingActionRecorded" &&
+      event.payload.countsTowardPitch === true &&
+      state.active
+    ) {
+      const call = event.payload.result as PitchCall | undefined;
+      if (
+        !locationActionIds.has(String(event.payload.actionId ?? ""))
+      ) {
+        state.pitchNumber += 1;
+      }
+      if (call === "BALL") state.balls += 1;
+      if (call === "CALLED_STRIKE" || call === "SWINGING_STRIKE") {
+        state.strikes += 1;
+      }
+      if (call === "FOUL" && state.strikes < 2) state.strikes += 1;
+    }
     if (event.eventType === "RunnerOut") {
       state.outs = Math.min(3, state.outs + 1);
+      if (event.payload.completesPlateAppearance !== false) {
+        state.active = false;
+      }
+    }
+    if (event.eventType === "OutCountAdjusted") {
+      const adjustedOuts = Number(event.payload.outs);
+      if (Number.isInteger(adjustedOuts)) {
+        state.outs = Math.max(0, Math.min(3, adjustedOuts));
+      }
+    }
+    if (
+      event.eventType === "RunnerMoved" &&
+      (event.payload.reason === "walk" ||
+        event.payload.reason === "hit-by-pitch")
+    ) {
+      state.active = false;
     }
     if (event.eventType === "BallPutInPlay") state.active = false;
   }
@@ -94,7 +145,7 @@ function completedAppearanceCount(
 ): number {
   let activeForTeam = false;
   let completed = 0;
-  for (const event of [...events].sort(
+  for (const event of activeGameEvents(events).sort(
     (left, right) => left.eventOrder - right.eventOrder
   )) {
     if (event.eventType === "PlateAppearanceStarted") {
@@ -104,7 +155,11 @@ function completedAppearanceCount(
       activeForTeam = battingTeamId === teamId;
     }
     if (!activeForTeam) continue;
-    if (event.eventType === "BallPutInPlay" || event.eventType === "RunnerOut") {
+    if (
+      event.eventType === "BallPutInPlay" ||
+      (event.eventType === "RunnerOut" &&
+        event.payload.completesPlateAppearance !== false)
+    ) {
       completed += 1;
       activeForTeam = false;
     }
@@ -125,8 +180,9 @@ export function projectGameFlow(
   roster: GameRosterEntry[],
   events: GameEvent[]
 ): PlateAppearanceState {
-  const state = projectPlateAppearance(events);
-  const lastHalf = [...events]
+  const activeEvents = activeGameEvents(events);
+  const state = projectPlateAppearance(activeEvents);
+  const lastHalf = [...activeEvents]
     .reverse()
     .find((event) => event.eventType === "HalfInningStarted");
   state.inning = Number(lastHalf?.payload.inning ?? 1);
@@ -149,7 +205,7 @@ export function projectGameFlow(
       roster.map((entry) => [entry.playerId, entry.teamId])
     );
     const index =
-      completedAppearanceCount(events, state.battingTeamId, teamByPlayer) %
+      completedAppearanceCount(activeEvents, state.battingTeamId, teamByPlayer) %
       lineup.length;
     const batter = lineup[index];
     state.nextBatterId = batter?.playerId;

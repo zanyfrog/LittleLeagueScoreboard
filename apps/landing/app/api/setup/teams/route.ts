@@ -39,8 +39,8 @@ export async function POST(request: Request) {
       {
         playerId,
         personId,
-        bats: "UNKNOWN",
-        throws: "UNKNOWN",
+        bats: "RIGHT",
+        throws: "RIGHT",
         primaryPosition: index === 0 ? "P" : index === 1 ? "C" : "UNKNOWN",
         createdAtUtc: now
       },

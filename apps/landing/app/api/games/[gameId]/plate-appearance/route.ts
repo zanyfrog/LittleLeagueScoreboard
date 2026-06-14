@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import type { BaseState, RunnerMovement } from "@ll-score/contracts";
 import { projectGameFlow } from "@ll-score/count-controls";
@@ -12,13 +13,20 @@ type PlateAppearanceAction =
       pitcherLabel: string;
     }
   | {
-      action: "PITCH";
-      call: string;
+      action: "LOCATION" | "PITCH";
+      call?: string;
       pitchType?: string;
       location?: string;
+      locationZone?: number;
       locationX?: number;
       locationY?: number;
       isInStrikeZone?: boolean;
+      description?: string;
+    }
+  | {
+      action: "RESULT";
+      result: string;
+      pitchActionId?: string;
       description?: string;
     }
   | {
@@ -27,21 +35,24 @@ type PlateAppearanceAction =
       fieldLocation?: string;
       hitLocationX?: number;
       hitLocationY?: number;
+      fieldingSequence?: string;
       description?: string;
     };
 
 function walkMovements(
   batterId: string,
-  bases: BaseState
+  bases: BaseState,
+  cause: "walk" | "hit-by-pitch" = "walk"
 ): RunnerMovement[] {
   const movements: RunnerMovement[] = [];
+  const causeLabel = cause === "hit-by-pitch" ? "hit by pitch" : "walk";
   if (bases.first && bases.second && bases.third) {
     movements.push({
       runnerId: bases.third.runnerId,
       from: "THIRD",
       to: "HOME",
       outcome: "SAFE",
-      reason: "forced home by walk"
+      reason: `forced home by ${causeLabel}`
     });
   }
   if (bases.first && bases.second) {
@@ -50,7 +61,7 @@ function walkMovements(
       from: "SECOND",
       to: "THIRD",
       outcome: "SAFE",
-      reason: "forced to third by walk"
+      reason: `forced to third by ${causeLabel}`
     });
   }
   if (bases.first) {
@@ -59,7 +70,7 @@ function walkMovements(
       from: "FIRST",
       to: "SECOND",
       outcome: "SAFE",
-      reason: "forced to second by walk"
+      reason: `forced to second by ${causeLabel}`
     });
   }
   movements.push({
@@ -67,7 +78,7 @@ function walkMovements(
     from: "BATTER",
     to: "FIRST",
     outcome: "SAFE",
-    reason: "walk"
+    reason: causeLabel
   });
   return movements;
 }
@@ -118,12 +129,28 @@ function hitMovements(
   return movements;
 }
 
+function inferFieldLocation(sequence?: string): string | undefined {
+  const firstFielder = sequence?.trim().match(/^(1|2|3|4|5|6|7|8|9)\b/)?.[1];
+  return {
+    "1": "P",
+    "2": "C",
+    "3": "1B",
+    "4": "2B",
+    "5": "3B",
+    "6": "SS",
+    "7": "LF",
+    "8": "LCF",
+    "9": "RF"
+  }[firstFielder ?? ""];
+}
+
 async function finishHalfInningIfNeeded(
   gameId: string,
   outsAfterPlay: number,
   inning: number,
   half: "TOP" | "BOTTOM",
-  runtime: Awaited<ReturnType<typeof getRuntime>>
+  runtime: Awaited<ReturnType<typeof getRuntime>>,
+  actionId: string
 ) {
   if (outsAfterPlay < 3) return;
   const nextHalf = half === "TOP" ? "BOTTOM" : "TOP";
@@ -132,7 +159,7 @@ async function finishHalfInningIfNeeded(
     {
       gameId,
       eventType: "HalfInningStarted",
-      payload: { inning: nextInning, half: nextHalf }
+      payload: { inning: nextInning, half: nextHalf, actionId }
     },
     requestContext(runtime.actorId, gameId)
   );
@@ -155,6 +182,7 @@ export async function POST(
   const flow = projectGameFlow(game, roster, replay.events);
 
   if (input.action === "START") {
+    const actionId = randomUUID();
     if (input.batterId !== flow.nextBatterId) {
       return NextResponse.json(
         { error: `Next batter must be ${flow.nextBatterLabel}.` },
@@ -167,6 +195,7 @@ export async function POST(
         eventType: "PlateAppearanceStarted",
         payload: {
           ...input,
+          actionId,
           battingTeamId: flow.battingTeamId,
           fieldingTeamId: flow.fieldingTeamId,
           inning: flow.inning,
@@ -178,26 +207,54 @@ export async function POST(
     return NextResponse.json(result);
   }
 
-  if (input.action === "PITCH") {
+  if (input.action === "LOCATION" || input.action === "PITCH") {
+    const actionId = randomUUID();
     const pitch = await runtime.engine.scoring.recordEvent(
-      { gameId, eventType: "PitchRecorded", payload: input },
+      {
+        gameId,
+        eventType: "PitchRecorded",
+        payload: {
+          ...input,
+          call: input.action === "PITCH" ? input.call : undefined,
+          actionId,
+          source: "location"
+        }
+      },
       context
     );
-    const isWalk = input.call === "BALL" && flow.balls === 3;
+    return NextResponse.json(pitch);
+  }
+
+  if (input.action === "RESULT") {
+    const actionId = input.pitchActionId ?? randomUUID();
+    const result = await runtime.engine.scoring.recordEvent(
+      {
+        gameId,
+        eventType: "FieldingActionRecorded",
+        payload: {
+          result: input.result,
+          description: input.description,
+          actionId,
+          source: "pitch-result",
+          countsTowardPitch: true
+        }
+      },
+      context
+    );
+    const isWalk = input.result === "BALL" && flow.balls === 3;
     const isStrikeout =
-      (input.call === "CALLED_STRIKE" ||
-        input.call === "SWINGING_STRIKE") &&
+      (input.result === "CALLED_STRIKE" ||
+        input.result === "SWINGING_STRIKE") &&
       flow.strikes === 2;
-    const isHitByPitch = input.call === "HIT_BY_PITCH";
-    if ((isWalk || isHitByPitch) && flow.batterId) {
+    if (isWalk && flow.batterId) {
       await runtime.engine.scoring.recordEvent(
         {
           gameId,
           eventType: "RunnerMoved",
-          payload: { reason: isWalk ? "walk" : "hit-by-pitch" },
+          payload: { reason: "walk", actionId },
           runnerMovements: walkMovements(flow.batterId, replay.currentBaseState)
         },
-        requestContext(runtime.actorId, gameId)
+        context
       );
     }
     if (isStrikeout && flow.batterId) {
@@ -205,7 +262,11 @@ export async function POST(
         {
           gameId,
           eventType: "RunnerOut",
-          payload: { reason: "strikeout", batterId: flow.batterId },
+          payload: {
+            reason: "strikeout",
+            batterId: flow.batterId,
+            actionId
+          },
           runnerMovements: [{
             runnerId: flow.batterId,
             from: "BATTER",
@@ -214,21 +275,57 @@ export async function POST(
             reason: "strikeout"
           }]
         },
-        requestContext(runtime.actorId, gameId)
+        context
       );
       await finishHalfInningIfNeeded(
         gameId,
         flow.outs + 1,
         flow.inning,
         flow.half,
-        runtime
+        runtime,
+        actionId
       );
     }
-    return NextResponse.json(pitch);
+    if (input.result === "HIT_BY_PITCH" && flow.batterId) {
+      await runtime.engine.scoring.recordEvent(
+        {
+          gameId,
+          eventType: "RunnerMoved",
+          payload: { reason: "hit-by-pitch", actionId },
+          runnerMovements: walkMovements(
+            flow.batterId,
+            replay.currentBaseState,
+            "hit-by-pitch"
+          )
+        },
+        requestContext(runtime.actorId, gameId)
+      );
+    }
+    return NextResponse.json(result);
   }
 
+  if (input.action !== "BALL_IN_PLAY") {
+    return NextResponse.json({ error: "Unsupported action." }, { status: 400 });
+  }
+  if (
+    input.result === "Ground Out" &&
+    !input.fieldingSequence?.trim()
+  ) {
+    return NextResponse.json(
+      { error: "Ground outs require a fielding sequence, such as SS to 1B." },
+      { status: 400 }
+    );
+  }
+
+  const actionId = randomUUID();
+  const fieldLocation =
+    input.fieldLocation ?? inferFieldLocation(input.fieldingSequence);
   const result = await runtime.engine.scoring.recordEvent(
-    { gameId, eventType: "BallPutInPlay", payload: input },
+    {
+      gameId,
+      eventType: "BallPutInPlay",
+      payload: { ...input, fieldLocation, actionId }
+    },
     context
   );
   const hitBases = new Map([
@@ -244,6 +341,7 @@ export async function POST(
         eventType: "RunnerMoved",
         payload: {
           reason: "hit",
+          actionId,
           result: input.result,
           hitLocationX: input.hitLocationX,
           hitLocationY: input.hitLocationY,
@@ -258,13 +356,25 @@ export async function POST(
       requestContext(runtime.actorId, gameId)
     );
   }
-  const isOut = ["Ground out", "Fly out", "Line out"].includes(input.result);
+  const isOut = [
+    "Ground Out",
+    "Fly Out",
+    "Line Out",
+    "Pop Out",
+    "Sacrifice Fly",
+    "Sacrifice Bunt"
+  ].includes(input.result);
   if (isOut && flow.batterId) {
     await runtime.engine.scoring.recordEvent(
       {
         gameId,
         eventType: "RunnerOut",
-        payload: { reason: input.result, batterId: flow.batterId },
+        payload: {
+          reason: input.result,
+          batterId: flow.batterId,
+          fieldingSequence: input.fieldingSequence?.trim(),
+          actionId
+        },
         runnerMovements: [{
           runnerId: flow.batterId,
           from: "BATTER",
@@ -280,7 +390,8 @@ export async function POST(
       flow.outs + 1,
       flow.inning,
       flow.half,
-      runtime
+      runtime,
+      actionId
     );
   }
   return NextResponse.json(result);

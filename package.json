@@ -12,6 +12,7 @@
     "typecheck": "pnpm -r typecheck",
     "check": "pnpm typecheck && pnpm test && pnpm build",
     "seed:sample": "pnpm --filter @ll-score/testing seed",
+    "seed:all-star": "pnpm --filter @ll-score/testing seed:all-star",
     "landing:dev": "pnpm --filter ll-score-landing dev",
     "landing:build": "pnpm --filter ll-score-landing build",
     "landing:start": "pnpm --filter ll-score-landing start",

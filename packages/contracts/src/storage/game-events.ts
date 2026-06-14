@@ -9,10 +9,12 @@ export const gameEventTypeSchema = z.enum([
   "HalfInningStarted",
   "PlateAppearanceStarted",
   "PitchRecorded",
+  "ScorekeeperCommentRecorded",
   "BallPutInPlay",
   "FieldingActionRecorded",
   "RunnerMoved",
   "RunnerOut",
+  "OutCountAdjusted",
   "RunScored",
   "DefensivePositionChanged",
   "PitcherChanged",
@@ -21,6 +23,18 @@ export const gameEventTypeSchema = z.enum([
   "GameFinalized"
 ]);
 export type GameEventType = z.infer<typeof gameEventTypeSchema>;
+
+export const replayMediaAttachmentSchema = z.object({
+  mediaId: z.string().min(1),
+  mediaType: z.enum(["IMAGE", "VIDEO"]),
+  url: z.string().min(1),
+  capturedAtUtc: z.string().datetime(),
+  uploadedAtUtc: z.string().datetime(),
+  caption: z.string().optional()
+});
+export type ReplayMediaAttachment = z.infer<
+  typeof replayMediaAttachmentSchema
+>;
 
 export const gameEventSchema = z.object({
   eventId: z.string().min(1),
@@ -33,6 +47,7 @@ export const gameEventSchema = z.object({
   payload: z.record(z.unknown()).default({}),
   positionChanges: z.array(defensivePositionChangeSchema).default([]),
   runnerMovements: z.array(runnerMovementSchema).default([]),
+  mediaAttachments: z.array(replayMediaAttachmentSchema).optional(),
   reversesEventId: z.string().min(1).optional(),
   correctsEventId: z.string().min(1).optional(),
   correctionNote: z.string().min(1).optional()

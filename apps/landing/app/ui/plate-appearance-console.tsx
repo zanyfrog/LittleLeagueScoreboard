@@ -1,76 +1,154 @@
 "use client";
 
-import { useEffect, useMemo, useState, type MouseEvent } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { CurrentGameLineups } from "@ll-score/game-engine";
-import type { PlateAppearanceState, PitchCall } from "@ll-score/count-controls";
+import type { BaseState, GameEvent } from "@ll-score/contracts";
 import {
-  describePitchLocation,
-  type PitchLocation
-} from "@ll-score/pitch-location";
+  activeGameEvents,
+  type PlateAppearanceState,
+  type PitchCall
+} from "@ll-score/count-controls";
 import {
-  describeHitLocation,
-  type HitLocation
-} from "@ll-score/hit-location";
+  InPlayView,
+  inferLandingZoneFromFieldingSequence,
+  type InPlayResult,
+  type LandingZone
+} from "./in-play-view";
+import {
+  PitchUmpireView,
+  type PitchEntry
+} from "./pitch-umpire-view";
+import { Bases } from "./bases";
 
 interface Props {
   gameId: string;
   lineups: CurrentGameLineups;
+  events: GameEvent[];
+  baseState: BaseState;
   state: PlateAppearanceState;
   disabled: boolean;
+  onSteal: (
+    runnerId: string,
+    from: "FIRST" | "SECOND" | "THIRD",
+    to: "SECOND" | "THIRD" | "HOME"
+  ) => void;
+  onCaughtStealing: (
+    runnerId: string,
+    from: "FIRST" | "SECOND" | "THIRD",
+    attemptedBase: "SECOND" | "THIRD" | "HOME"
+  ) => void;
   onRecorded: () => Promise<void>;
 }
 
-const pitchCalls: Array<{ value: PitchCall; label: string }> = [
-  { value: "BALL", label: "Ball" },
-  { value: "CALLED_STRIKE", label: "Called strike" },
-  { value: "SWINGING_STRIKE", label: "Swinging strike" },
-  { value: "FOUL", label: "Foul" },
-  { value: "IN_PLAY", label: "In play" },
-  { value: "HIT_BY_PITCH", label: "Hit by pitch" }
-];
+function zoneCoordinates(zone: number): { x: number; y: number } {
+  const coordinates: Record<number, { x: number; y: number }> = {
+    7: { x: 0.15, y: 0.12 }, 8: { x: 0.5, y: 0.12 }, 9: { x: 0.85, y: 0.12 },
+    4: { x: 0.15, y: 0.5 }, 5: { x: 0.5, y: 0.5 }, 6: { x: 0.85, y: 0.5 },
+    1: { x: 0.15, y: 0.88 }, 2: { x: 0.5, y: 0.88 }, 3: { x: 0.85, y: 0.88 }
+  };
+  return coordinates[zone] ?? coordinates[5]!;
+}
 
 export function PlateAppearanceConsole({
   gameId,
   lineups,
+  events,
+  baseState,
   state,
   disabled,
+  onSteal,
+  onCaughtStealing,
   onRecorded
 }: Props) {
-  const batters =
-    lineups.away.teamId === state.battingTeamId
-      ? lineups.away.players
-      : lineups.home.players;
-  const fielders =
-    lineups.home.teamId === state.fieldingTeamId
-      ? lineups.home.players
-      : lineups.away.players;
-  const pitchers = useMemo(
-    () => fielders,
-    [fielders]
-  );
-  const [batterId, setBatterId] = useState(
-    state.nextBatterId ?? batters[0]?.playerId ?? ""
-  );
+  const batters = lineups.away.teamId === state.battingTeamId
+    ? lineups.away.players : lineups.home.players;
+  const fielders = lineups.home.teamId === state.fieldingTeamId
+    ? lineups.home.players : lineups.away.players;
+  const pitchers = useMemo(() => fielders, [fielders]);
+  const [batterId, setBatterId] = useState(state.nextBatterId ?? "");
   const [pitcherId, setPitcherId] = useState(
     pitchers.find((player) => player.isCurrentPitcher)?.playerId ?? ""
   );
-  const [pitchType, setPitchType] = useState("Fastball");
-  const [location, setLocation] = useState<PitchLocation | null>(null);
-  const [description, setDescription] = useState("");
-  const [result, setResult] = useState("Single");
-  const [hitLocation, setHitLocation] = useState<HitLocation | null>(null);
+  const [view, setView] = useState<"pitch" | "in-play">("pitch");
+  const [pitchZone, setPitchZone] = useState<number | null>(null);
+  const [pitchNote, setPitchNote] = useState("");
+  const [landingZone, setLandingZone] = useState<LandingZone | null>(null);
+  const [playResult, setPlayResult] = useState<InPlayResult | null>(null);
+  const [fieldingSequence, setFieldingSequence] = useState("");
+  const [playNote, setPlayNote] = useState("");
 
   useEffect(() => {
-    setBatterId(state.nextBatterId ?? batters[0]?.playerId ?? "");
-  }, [state.nextBatterId, batters]);
+    setBatterId(state.nextBatterId ?? "");
+  }, [state.nextBatterId, state.active]);
 
   useEffect(() => {
     setPitcherId(
       fielders.find((player) => player.isCurrentPitcher)?.playerId ??
-        fielders[0]?.playerId ??
-        ""
+        fielders[0]?.playerId ?? ""
     );
   }, [state.fieldingTeamId, fielders]);
+
+  const pitchSequence = useMemo(() => {
+    const active = activeGameEvents(events).sort(
+      (left, right) => left.eventOrder - right.eventOrder
+    );
+    const plateAppearanceStart = [...active]
+      .reverse()
+      .find((event) => event.eventType === "PlateAppearanceStarted");
+    if (!plateAppearanceStart) return [];
+    const resultsByAction = new Map(
+      active
+        .filter(
+          (event) =>
+            event.eventType === "FieldingActionRecorded" &&
+            event.payload.countsTowardPitch === true
+        )
+        .map((event) => [
+          String(event.payload.actionId ?? ""),
+          event.payload.result as PitchCall
+        ])
+    );
+    return active
+      .filter(
+        (event) =>
+          event.eventOrder > plateAppearanceStart.eventOrder &&
+          event.eventType === "PitchRecorded" &&
+          event.payload.source === "location"
+      )
+      .map((event): PitchEntry => ({
+        call:
+          (event.payload.call as PitchCall | undefined) ??
+          resultsByAction.get(String(event.payload.actionId ?? "")),
+        zone: Number(event.payload.locationZone),
+        note: String(event.payload.description ?? "")
+      }))
+      .filter((pitch) => Number.isFinite(pitch.zone));
+  }, [events]);
+  const pendingPitch = [...pitchSequence].reverse().find((pitch) => !pitch.call);
+  const pendingPitchActionId = useMemo(() => {
+    if (!pendingPitch) return undefined;
+    const active = activeGameEvents(events).sort(
+      (left, right) => left.eventOrder - right.eventOrder
+    );
+    const results = new Set(
+      active
+        .filter(
+          (event) =>
+            event.eventType === "FieldingActionRecorded" &&
+            event.payload.countsTowardPitch === true
+        )
+        .map((event) => String(event.payload.actionId ?? ""))
+    );
+    return [...active]
+      .reverse()
+      .find(
+        (event) =>
+          event.eventType === "PitchRecorded" &&
+          event.payload.source === "location" &&
+          !event.payload.call &&
+          !results.has(String(event.payload.actionId ?? ""))
+      )?.payload.actionId as string | undefined;
+  }, [events, pendingPitch]);
 
   async function post(body: Record<string, unknown>) {
     const response = await fetch(`/api/games/${gameId}/plate-appearance`, {
@@ -79,8 +157,6 @@ export function PlateAppearanceConsole({
       body: JSON.stringify(body)
     });
     if (!response.ok) throw new Error(await response.text());
-    if (body.action === "PITCH") setLocation(null);
-    if (body.action === "BALL_IN_PLAY") setHitLocation(null);
     await onRecorded();
   }
 
@@ -88,7 +164,6 @@ export function PlateAppearanceConsole({
     const batter = batters.find((player) => player.playerId === batterId);
     const pitcher = pitchers.find((player) => player.playerId === pitcherId);
     if (!batter || !pitcher) return;
-    setLocation(null);
     await post({
       action: "START",
       batterId,
@@ -98,134 +173,164 @@ export function PlateAppearanceConsole({
     });
   }
 
-  function chooseLocation(event: MouseEvent<HTMLButtonElement>) {
-    const bounds = event.currentTarget.getBoundingClientRect();
-    setLocation(
-      describePitchLocation(
-        (event.clientX - bounds.left) / bounds.width,
-        (event.clientY - bounds.top) / bounds.height
-      )
-    );
+  async function recordLocation(zone: number) {
+    const coordinates = zoneCoordinates(zone);
+    await post({
+      action: "LOCATION",
+      pitchType: "Unspecified",
+      location: `Zone ${zone}`,
+      locationZone: zone,
+      locationX: coordinates.x,
+      locationY: coordinates.y,
+      isInStrikeZone: zone === 5
+    });
   }
 
-  function chooseHitLocation(event: MouseEvent<HTMLButtonElement>) {
-    const bounds = event.currentTarget.getBoundingClientRect();
-    setHitLocation(
-      describeHitLocation(
-        (event.clientX - bounds.left) / bounds.width,
-        (event.clientY - bounds.top) / bounds.height
-      )
-    );
+  async function recordResult(call: PitchCall) {
+    await post({
+      action: "RESULT",
+      result: call,
+      pitchActionId: pendingPitchActionId
+    });
+    if (call === "IN_PLAY") setView("in-play");
   }
+
+  async function undoLastAction() {
+    const response = await fetch(`/api/games/${gameId}/undo`, {
+      method: "POST"
+    });
+    if (!response.ok) throw new Error(await response.text());
+    setPitchZone(null);
+    setView("pitch");
+    await onRecorded();
+  }
+
+  async function submitComment() {
+    const comment = pitchNote.trim();
+    if (!comment) return;
+    const response = await fetch(`/api/games/${gameId}/comments`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ comment })
+    });
+    if (!response.ok) throw new Error(await response.text());
+    setPitchNote("");
+    await onRecorded();
+  }
+
+  async function savePlay() {
+    if (!playResult) return;
+    const resolvedLandingZone =
+      landingZone ??
+      (playResult === "Ground Out"
+        ? inferLandingZoneFromFieldingSequence(fieldingSequence)
+        : null);
+    if (!resolvedLandingZone) return;
+    await post({
+      action: "BALL_IN_PLAY",
+      result: playResult,
+      fieldLocation: resolvedLandingZone,
+      landingZone: resolvedLandingZone,
+      fieldingSequence:
+        playResult === "Ground Out" ? fieldingSequence.trim() : undefined,
+      description: playNote
+    });
+    setLandingZone(null);
+    setPlayResult(null);
+    setFieldingSequence("");
+    setPlayNote("");
+    setView("pitch");
+  }
+
+  const batter = batters.find((player) => player.playerId === batterId);
+  const pitcher = pitchers.find((player) => player.playerId === pitcherId);
 
   return (
     <section className="plate-console">
       <div className="section-heading">
-        <div>
-          <p className="eyebrow">Live scoring</p>
-          <h2>Plate Appearance / Pitch Console</h2>
-        </div>
-        <div className="count-display">
-          <span>B <strong>{state.balls}</strong></span>
-          <span>S <strong>{state.strikes}</strong></span>
-          <span>O <strong>{state.outs}</strong></span>
-        </div>
-      </div>
-      <div className="pa-identity">
-        <label>Batter
-          <select value={batterId} disabled>
-            {batters.map((player) => <option key={player.playerId} value={player.playerId}>{player.displayLabel}</option>)}
-          </select>
-        </label>
-        <label>Pitcher
-          <select value={pitcherId} onChange={(event) => setPitcherId(event.target.value)}>
-            {pitchers.map((player) => <option key={player.playerId} value={player.playerId}>{player.displayLabel}</option>)}
-          </select>
-        </label>
-        <button disabled={disabled} onClick={() => void start()}>Batter Up</button>
-      </div>
-      <div className="active-matchup">
-        <strong>{state.active ? state.batterLabel : "No active batter"}</strong>
-        <span>{state.active ? `facing ${state.pitcherLabel} - Pitch ${state.pitchNumber + 1}` : `${state.nextBatterLabel ?? "Next batter"} is due up`}</span>
-      </div>
-      <div className="pitch-details">
-        <label>Pitch type
-          <select value={pitchType} onChange={(event) => setPitchType(event.target.value)}>
-            {["Fastball", "Changeup", "Curveball", "Slider", "Other"].map((value) => <option key={value}>{value}</option>)}
-          </select>
-        </label>
-        <label>Description
-          <input value={description} onChange={(event) => setDescription(event.target.value)} placeholder="Pitcher and batter action..." />
-        </label>
-      </div>
-      <div className="pitch-entry">
-        <div>
-          <p className="pitch-step">1. Click where the pitch crossed the plate</p>
-          <button type="button" className="strike-zone-control" aria-label="Pitch location" disabled={disabled || !state.active} onClick={chooseLocation}>
-            <span className="strike-zone-grid" />
-            {location ? <span className={`pitch-marker ${location.isInStrikeZone ? "in-zone" : ""}`} style={{ left: `${location.x * 100}%`, top: `${location.y * 100}%` }} /> : null}
-          </button>
-          <div className="location-readout">
-            {location ? `${location.zone}${location.isInStrikeZone ? " (in zone)" : " (outside zone)"}` : "No pitch location selected"}
-          </div>
-        </div>
-        <div>
-          <p className="pitch-step">2. Record the result</p>
-          <div className="pitch-actions">
-            {pitchCalls.map((call) => (
-              <button key={call.value} disabled={disabled || !state.active || !location} onClick={() => void post({
-                action: "PITCH",
-                call: call.value,
-                pitchType,
-                location: location?.zone,
-                locationX: location?.x,
-                locationY: location?.y,
-                isInStrikeZone: location?.isInStrikeZone,
-                description
-              })}>{call.label}</button>
-            ))}
+        <div><p className="eyebrow">Live scoring</p><h2>At-Bat Scorekeeper</h2></div>
+        <div className="scorekeeper-header-actions">
+          <div className="count-display">
+            <span>B <strong>{state.balls}</strong></span>
+            <span>S <strong>{state.strikes}</strong></span>
+            <span>O <strong>{state.outs}</strong></span>
           </div>
         </div>
       </div>
-      <div className="ball-in-play">
-        <div>
-          <p className="pitch-step">Hit location</p>
-          <button type="button" className="hit-field-control" aria-label="Hit location" disabled={disabled || !state.active} onClick={chooseHitLocation}>
-            <span className="hit-infield" />
-            <span className="hit-home" />
-            {hitLocation ? <span className="hit-marker" style={{ left: `${hitLocation.x * 100}%`, top: `${hitLocation.y * 100}%` }} /> : null}
-          </button>
-          <div className="location-readout">{hitLocation?.area ?? "Click where the ball was hit"}</div>
-        </div>
-        <div className="hit-result-controls">
-          <p className="pitch-step">Hit result</p>
-          <div className="hit-buttons">
-            {["Single", "Double", "Triple", "Home run"].map((value) => (
-              <button key={value} disabled={disabled || !state.active || !hitLocation} onClick={() => void post({
-                action: "BALL_IN_PLAY",
-                result: value,
-                fieldLocation: hitLocation?.area,
-                hitLocationX: hitLocation?.x,
-                hitLocationY: hitLocation?.y,
-                description
-              })}>{value}</button>
-            ))}
+      {view === "in-play" ? (
+        <>
+          <div className="scorekeeper-tabs">
+            <button onClick={() => setView("pitch")}>Pitch / Umpire</button>
+            <button className="active">In-Play</button>
           </div>
-          <label>Other play result
-            <select value={result} onChange={(event) => setResult(event.target.value)}>
-              {["Ground out", "Fly out", "Line out", "Error", "Fielders choice"].map((value) => <option key={value}>{value}</option>)}
+          <InPlayView
+            selectedZone={landingZone}
+            selectedResult={playResult}
+            fieldingSequence={fieldingSequence}
+            note={playNote}
+            disabled={disabled}
+            onZoneChange={setLandingZone}
+            onResultChange={(result) => {
+              setPlayResult(result);
+              if (result !== "Ground Out") setFieldingSequence("");
+            }}
+            onFieldingSequenceChange={setFieldingSequence}
+            onNoteChange={setPlayNote}
+            onCancel={() => setView("pitch")}
+            onSave={() => void savePlay()}
+          />
+        </>
+      ) : !state.active ? (
+        <div className="pa-identity">
+          <label>Batter
+            <select value={batterId} disabled>
+              {batters.map((player) => <option key={player.playerId} value={player.playerId}>{player.displayLabel}</option>)}
             </select>
           </label>
-          <button disabled={disabled || !state.active || !hitLocation} onClick={() => void post({
-            action: "BALL_IN_PLAY",
-            result,
-            fieldLocation: hitLocation?.area,
-            hitLocationX: hitLocation?.x,
-            hitLocationY: hitLocation?.y,
-            description
-          })}>Record Other Play</button>
+          <label>Pitcher
+            <select value={pitcherId} onChange={(event) => setPitcherId(event.target.value)}>
+              {pitchers.map((player) => <option key={player.playerId} value={player.playerId}>{player.displayLabel}</option>)}
+            </select>
+          </label>
+          <button disabled={disabled} onClick={() => void start()}>
+            Batter Up{state.nextBatterLabel ? `: ${state.nextBatterLabel}` : ""}
+          </button>
+          <button className="undo-button" disabled={disabled} onClick={() => void undoLastAction()}>
+            Undo Last Action
+          </button>
         </div>
-      </div>
+      ) : (
+        <>
+          <div className="scorekeeper-tabs">
+            <button className="active">Pitch / Umpire</button>
+            <button onClick={() => setView("in-play")}>In-Play</button>
+          </div>
+          <PitchUmpireView
+            state={state}
+            pitcherLabel={pitcher?.displayLabel ?? state.pitcherLabel}
+            batterHandedness={`${batter?.bats?.slice(0, 1) ?? "R"} / ${batter?.throws?.slice(0, 1) ?? "R"}`}
+            selectedZone={pitchZone}
+            note={pitchNote}
+            disabled={disabled}
+            recentPitches={pitchSequence}
+            awaitingResult={Boolean(pendingPitchActionId)}
+            onBasePanel={
+              <Bases
+                state={baseState}
+                disabled={disabled}
+                onSteal={onSteal}
+                onCaughtStealing={onCaughtStealing}
+              />
+            }
+            onZoneChange={setPitchZone}
+            onRecordLocation={(zone) => void recordLocation(zone)}
+            onNoteChange={setPitchNote}
+            onSubmitComment={() => void submitComment()}
+            onRecordResult={(call) => void recordResult(call)}
+            onUndo={() => void undoLastAction()}
+          />
+        </>
+      )}
     </section>
   );
 }

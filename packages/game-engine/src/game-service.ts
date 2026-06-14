@@ -15,14 +15,23 @@ export function createGameService(
   async function summarize(gameId: string): Promise<GameSummary> {
     const game = await storage.games.getById(gameId);
     if (!game) throw new GameNotFoundError(gameId);
-    const [home, away] = await Promise.all([
+    const [home, away, roster] = await Promise.all([
       storage.teams.getById(game.homeTeamId),
-      storage.teams.getById(game.awayTeamId)
+      storage.teams.getById(game.awayTeamId),
+      storage.rosters.getGameRoster(gameId)
     ]);
+    const rosterTeamName = (teamId: string) =>
+      roster.find((entry) => entry.teamId === teamId)?.teamNameSnapshot;
     return {
       ...game,
-      homeTeamName: home?.name ?? game.homeTeamId,
-      awayTeamName: away?.name ?? game.awayTeamId
+      homeTeamName:
+        game.status === "SCHEDULED"
+          ? home?.name ?? game.homeTeamId
+          : rosterTeamName(game.homeTeamId) ?? home?.name ?? game.homeTeamId,
+      awayTeamName:
+        game.status === "SCHEDULED"
+          ? away?.name ?? game.awayTeamId
+          : rosterTeamName(game.awayTeamId) ?? away?.name ?? game.awayTeamId
     };
   }
 
