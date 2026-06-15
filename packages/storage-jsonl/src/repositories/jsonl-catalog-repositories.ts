@@ -83,10 +83,16 @@ export function createJsonlCatalogRepositories(
           item.teamId === teamId && (!seasonId || item.seasonId === seasonId)
       )
   };
-  const games = new JsonlRepository(
+  const gameBase = new JsonlRepository(
     new JsonlStream<Game>(join(catalogPath, "games.jsonl"), "catalog:games", queue),
     (value) => value.gameId
   );
+  const games: GameRepository = {
+    getById: (id) => gameBase.getById(id),
+    list: () => gameBase.list(),
+    save: (value, actorId) => gameBase.save(value, actorId),
+    delete: (gameId) => gameBase.delete(gameId)
+  };
 
   return { people, players, organizations, seasons, teams, memberships, games };
 }

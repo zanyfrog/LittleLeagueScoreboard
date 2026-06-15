@@ -40,3 +40,49 @@ export async function GET(
     plateAppearance
   });
 }
+
+export async function DELETE(
+  _request: Request,
+  { params }: { params: Promise<{ gameId: string }> }
+) {
+  const { gameId } = await params;
+  const runtime = await getRuntime();
+  const deleted = await runtime.engine.games.deleteGame(
+    gameId,
+    requestContext(runtime.actorId, gameId)
+  );
+  return NextResponse.json({ deleted });
+}
+
+export async function PUT(
+  request: Request,
+  { params }: { params: Promise<{ gameId: string }> }
+) {
+  const { gameId } = await params;
+  const input = (await request.json()) as {
+    scheduledStartUtc?: string;
+    locationName?: string;
+  };
+  const scheduledStartUtc = input.scheduledStartUtc?.trim();
+  if (
+    scheduledStartUtc &&
+    Number.isNaN(new Date(scheduledStartUtc).getTime())
+  ) {
+    return NextResponse.json(
+      { error: "Enter a valid matchup date and time." },
+      { status: 400 }
+    );
+  }
+  const runtime = await getRuntime();
+  const game = await runtime.engine.games.updateGameDetails(
+    gameId,
+    {
+      scheduledStartUtc: scheduledStartUtc
+        ? new Date(scheduledStartUtc).toISOString()
+        : undefined,
+      locationName: input.locationName?.trim() || undefined
+    },
+    requestContext(runtime.actorId, gameId)
+  );
+  return NextResponse.json({ game });
+}

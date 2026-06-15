@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { appendFile, mkdtemp, readFile } from "node:fs/promises";
+import {
+  access,
+  appendFile,
+  mkdir,
+  mkdtemp,
+  readFile,
+  writeFile
+} from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -150,6 +157,81 @@ describe("JSONL storage", () => {
           events: [positionEvent(gameId, 1, [])]
         })
       ).rejects.toBeInstanceOf(StreamVersionConflictError);
+    } finally {
+      await storage.close();
+    }
+  });
+
+  it("deletes a game and all active storage artifacts", async () => {
+    const root = await mkdtemp(join(tmpdir(), "ll-score-storage-"));
+    const storage = createJsonlStorage(root);
+    await storage.initialize();
+    const gameId = "game-delete-me";
+    const retainedGameId = "game-keep-me";
+    try {
+      for (const id of [gameId, retainedGameId]) {
+        await storage.games.save(
+          {
+            gameId: id,
+            homeTeamId: "home",
+            awayTeamId: "away",
+            timezoneName: "America/New_York",
+            scheduledStartUtc: utc,
+            locationName: "Memorial Field",
+            status: "SCHEDULED",
+            createdAtUtc: utc
+          },
+          "admin-1"
+        );
+      }
+      await storage.rosters.replaceGameRoster(
+        gameId,
+        [{
+          gameId,
+          teamId: "home",
+          playerId: "player-1",
+          displayNameSnapshot: "Alex",
+          teamNameSnapshot: "Falcons",
+          initialPosition: "P",
+          isPresent: true
+        }],
+        "admin-1"
+      );
+      await storage.gameEvents.append({
+        gameId,
+        expectedVersion: 0,
+        actorId: "admin-1",
+        events: [positionEvent(gameId, 1, [])]
+      });
+      await storage.audit.append({
+        auditEventId: randomUUID(),
+        occurredAtUtc: utc,
+        actorId: "admin-1",
+        action: "game.test",
+        resourceType: "game",
+        resourceId: gameId,
+        outcome: "ALLOWED",
+        metadata: {}
+      });
+      const snapshotPath = join(
+        root,
+        "games",
+        gameId,
+        "snapshots",
+        "test.json"
+      );
+      await mkdir(join(root, "games", gameId, "snapshots"), {
+        recursive: true
+      });
+      await writeFile(snapshotPath, "{}");
+
+      expect(await storage.deleteGameArtifacts(gameId)).toBe(true);
+
+      expect(await storage.games.getById(gameId)).toBeNull();
+      expect(await storage.games.getById(retainedGameId)).not.toBeNull();
+      expect(await storage.audit.list(gameId)).toEqual([]);
+      await expect(access(join(root, "games", gameId))).rejects.toThrow();
+      expect((await validateDataDirectory(root)).valid).toBe(true);
     } finally {
       await storage.close();
     }

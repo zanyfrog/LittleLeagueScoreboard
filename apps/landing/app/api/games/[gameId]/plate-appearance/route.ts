@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { NextResponse } from "next/server";
 import type { BaseState, RunnerMovement } from "@ll-score/contracts";
-import { projectGameFlow } from "@ll-score/count-controls";
+import { activeGameEvents, projectGameFlow } from "@ll-score/count-controls";
 import { getRuntime, requestContext } from "@/lib/runtime";
 
 type PlateAppearanceAction =
@@ -22,6 +22,7 @@ type PlateAppearanceAction =
       locationY?: number;
       isInStrikeZone?: boolean;
       description?: string;
+      pitchActionId?: string;
     }
   | {
       action: "RESULT";
@@ -208,7 +209,23 @@ export async function POST(
   }
 
   if (input.action === "LOCATION" || input.action === "PITCH") {
-    const actionId = randomUUID();
+    const actionId = input.pitchActionId ?? randomUUID();
+    const priorLocation = input.pitchActionId
+      ? [...activeGameEvents(replay.events)]
+          .reverse()
+          .find(
+            (event) =>
+              event.eventType === "PitchRecorded" &&
+              String(event.payload.actionId ?? "") === input.pitchActionId &&
+              event.payload.source === "location"
+          )
+      : undefined;
+    if (input.pitchActionId && !priorLocation) {
+      return NextResponse.json(
+        { error: "The pending pitch location could not be found." },
+        { status: 409 }
+      );
+    }
     const pitch = await runtime.engine.scoring.recordEvent(
       {
         gameId,
@@ -218,7 +235,11 @@ export async function POST(
           call: input.action === "PITCH" ? input.call : undefined,
           actionId,
           source: "location"
-        }
+        },
+        correctsEventId: priorLocation?.eventId,
+        correctionNote: priorLocation
+          ? "Pitch location changed before the official result"
+          : undefined
       },
       context
     );

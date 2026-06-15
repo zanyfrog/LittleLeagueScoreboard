@@ -6,6 +6,10 @@ node_modules.stale*/
 .tools/
 .pnpm-store/
 dist/
+.next/
+*.tsbuildinfo
+.gopro-import/
+GoPro_Full_Movie_*.mp4
 coverage/
 .env
 .local-data/

@@ -11,6 +11,7 @@ export function createGameService(
   dependencies: GameEngineDependencies
 ): GameService {
   const { storage, iam } = dependencies;
+  const now = dependencies.now ?? (() => new Date());
 
   async function summarize(gameId: string): Promise<GameSummary> {
     const game = await storage.games.getById(gameId);
@@ -54,6 +55,41 @@ export function createGameService(
         id: gameId
       });
       return summarize(gameId);
+    },
+    async updateGameDetails(
+      gameId,
+      details,
+      context
+    ): Promise<GameSummary> {
+      await requireAuthorization(iam, context, "update", "game-scoring", {
+        type: "game",
+        id: gameId
+      });
+      const game = await storage.games.getById(gameId);
+      if (!game) throw new GameNotFoundError(gameId);
+      await storage.games.save(
+        {
+          ...game,
+          scheduledStartUtc: details.scheduledStartUtc,
+          locationName: details.locationName,
+          updatedAtUtc: now().toISOString()
+        },
+        context.actorId
+      );
+      return summarize(gameId);
+    },
+    async deleteGame(
+      gameId: string,
+      context: RequestContext
+    ): Promise<boolean> {
+      await requireAuthorization(iam, context, "delete", "game-scoring", {
+        type: "game",
+        id: gameId
+      });
+      if (!(await storage.games.getById(gameId))) {
+        throw new GameNotFoundError(gameId);
+      }
+      return storage.deleteGameArtifacts(gameId);
     }
   };
 }

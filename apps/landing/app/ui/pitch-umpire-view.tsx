@@ -17,7 +17,6 @@ interface Props {
   note: string;
   disabled: boolean;
   recentPitches: PitchEntry[];
-  awaitingResult: boolean;
   onBasePanel: ReactNode;
   onZoneChange: (zone: number | null) => void;
   onRecordLocation: (zone: number) => void;
@@ -44,7 +43,6 @@ export function PitchUmpireView({
   note,
   disabled,
   recentPitches,
-  awaitingResult,
   onBasePanel,
   onZoneChange,
   onRecordLocation,
@@ -62,8 +60,8 @@ export function PitchUmpireView({
         <div><span>Count</span><strong>{state.balls} - {state.strikes}</strong></div>
         <div><span>This at-bat</span><strong>{state.pitchNumber} pitches</strong></div>
       </div>
-      <div className={`pitch-view-grid ${awaitingResult ? "result-only" : ""}`}>
-        {!awaitingResult ? <div>
+      <div className="pitch-view-grid">
+        <div>
           <div className="view-section-title">
             <div><span>Step 1</span><h3>Click pitch location</h3></div>
             <small>{selectedZone ? `Zone ${selectedZone}` : "No location selected"}</small>
@@ -73,7 +71,7 @@ export function PitchUmpireView({
               <button
                 key={zone}
                 className={`${zone === 5 ? "main-zone" : ""} ${selectedZone === zone ? "selected" : ""}`}
-                disabled={disabled || awaitingResult}
+                disabled={disabled}
                 onClick={() => {
                   onZoneChange(zone);
                   onRecordLocation(zone);
@@ -87,7 +85,7 @@ export function PitchUmpireView({
             Location does not determine the call. After selecting a location,
             record the official result on the right.
           </p>
-        </div> : null}
+        </div>
         <div>
           <div className="view-section-title">
             <div><span>Step 2: official call</span><h3>Record pitch result</h3></div>

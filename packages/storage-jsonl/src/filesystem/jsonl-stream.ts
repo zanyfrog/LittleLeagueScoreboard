@@ -1,5 +1,12 @@
 import { randomUUID } from "node:crypto";
-import { appendFile, mkdir, readFile } from "node:fs/promises";
+import {
+  appendFile,
+  mkdir,
+  readFile,
+  rename,
+  rm,
+  writeFile
+} from "node:fs/promises";
 import { dirname } from "node:path";
 import type { StorageTransaction } from "@ll-score/contracts";
 import {
@@ -96,6 +103,46 @@ export class JsonlStream<T> {
         );
       }
       return transactions;
+    });
+  }
+
+  removeWhere(predicate: (payload: T) => boolean): Promise<number> {
+    return this.#queue.enqueue(async () => {
+      const existing = await this.read();
+      const retained = existing.filter(
+        (transaction) => !predicate(transaction.payload)
+      );
+      const removed = existing.length - retained.length;
+      if (removed === 0) return 0;
+
+      let previousChecksum: string | null = null;
+      const transactions = retained.map((transaction, index) => {
+        const { checksum: _checksum, ...existingInput } = transaction;
+        const checksumInput: ChecksumInput<T> = {
+          ...existingInput,
+          streamVersion: index + 1,
+          previousChecksum
+        };
+        const rewritten: StorageTransaction<T> = {
+          ...checksumInput,
+          checksum: calculateChecksum(checksumInput)
+        };
+        previousChecksum = rewritten.checksum;
+        return rewritten;
+      });
+
+      await mkdir(dirname(this.#path), { recursive: true });
+      const temporaryPath = `${this.#path}.${randomUUID()}.tmp`;
+      await writeFile(
+        temporaryPath,
+        transactions.length
+          ? `${transactions.map((item) => JSON.stringify(item)).join("\n")}\n`
+          : "",
+        { encoding: "utf8", flush: true }
+      );
+      await rm(this.#path, { force: true });
+      await rename(temporaryPath, this.#path);
+      return removed;
     });
   }
 }

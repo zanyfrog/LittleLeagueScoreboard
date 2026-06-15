@@ -3,6 +3,8 @@ import type {
   GameEvent,
   GameProjections
 } from "@ll-score/contracts";
+import { rm } from "node:fs/promises";
+import { basename, join } from "node:path";
 import type {
   StorageAdapter,
   TransactionManager
@@ -25,6 +27,7 @@ import { writeGameSnapshots } from "./projections/snapshot-store.js";
 export interface JsonlStorageAdapter extends StorageAdapter {
   readonly paths: DataDirectoryPaths;
   rebuildGameProjections(gameId: string): Promise<GameProjections>;
+  deleteGameArtifacts(gameId: string): Promise<boolean>;
 }
 
 export function createJsonlStorage(root?: string): JsonlStorageAdapter {
@@ -39,13 +42,14 @@ export function createJsonlStorage(root?: string): JsonlStorageAdapter {
   let initialized = false;
 
   const rosters = new JsonlRosterRepository(paths.games, queue);
+  const audit = new JsonlAuditRepository(paths.audit, queue);
 
   return {
     paths,
     ...catalog,
     rosters,
     relationships: new JsonlRelationshipRepository(paths.catalog, queue),
-    audit: new JsonlAuditRepository(paths.audit, queue),
+    audit,
     gameEvents,
     transactions,
     async initialize() {
@@ -85,6 +89,20 @@ export function createJsonlStorage(root?: string): JsonlStorageAdapter {
       );
       await writeGameSnapshots(paths.games, projections);
       return projections;
+    },
+    async deleteGameArtifacts(gameId: string) {
+      if (
+        !gameId ||
+        basename(gameId) !== gameId ||
+        gameId === "." ||
+        gameId === ".."
+      ) {
+        throw new Error("Invalid game ID.");
+      }
+      const deleted = await catalog.games.delete(gameId);
+      await audit.deleteForResource(gameId);
+      await rm(join(paths.games, gameId), { recursive: true, force: true });
+      return deleted;
     }
   };
 }

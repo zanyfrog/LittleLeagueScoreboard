@@ -27,6 +27,12 @@ export class JsonlRepository<T> implements Repository<T> {
     });
   }
 
+  delete(id: string): Promise<boolean> {
+    return this.#stream
+      .removeWhere((value) => this.#getId(value) === id)
+      .then((removed) => removed > 0);
+  }
+
   async #current(): Promise<Map<string, T>> {
     const current = new Map<string, T>();
     for (const transaction of await this.#stream.read()) {

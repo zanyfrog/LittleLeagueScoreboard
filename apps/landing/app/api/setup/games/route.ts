@@ -8,6 +8,8 @@ export async function POST(request: Request) {
   const input = (await request.json()) as {
     awayTeamId: string;
     homeTeamId: string;
+    scheduledStartUtc?: string;
+    locationName?: string;
   };
   if (input.awayTeamId === input.homeTeamId) {
     return NextResponse.json({ error: "Choose two different teams." }, { status: 400 });
@@ -21,13 +23,26 @@ export async function POST(request: Request) {
   }
   const gameId = `game-${randomUUID()}`;
   const now = new Date().toISOString();
+  const scheduledStartUtc = input.scheduledStartUtc?.trim();
+  if (
+    scheduledStartUtc &&
+    Number.isNaN(new Date(scheduledStartUtc).getTime())
+  ) {
+    return NextResponse.json(
+      { error: "Enter a valid matchup date and time." },
+      { status: 400 }
+    );
+  }
   await runtime.storage.games.save(
     {
       gameId,
       awayTeamId: away.teamId,
       homeTeamId: home.teamId,
       timezoneName: "America/New_York",
-      scheduledStartUtc: now,
+      scheduledStartUtc: scheduledStartUtc
+        ? new Date(scheduledStartUtc).toISOString()
+        : now,
+      locationName: input.locationName?.trim() || undefined,
       status: "SCHEDULED",
       createdAtUtc: now
     },

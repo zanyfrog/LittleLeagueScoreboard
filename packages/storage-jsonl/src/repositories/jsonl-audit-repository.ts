@@ -31,4 +31,10 @@ export class JsonlAuditRepository implements AuditRepository {
       ? events.filter((event) => event.resourceId === resourceId)
       : events;
   }
+
+  deleteForResource(resourceId: string): Promise<number> {
+    return this.#stream.removeWhere(
+      (event) => event.resourceId === resourceId
+    );
+  }
 }

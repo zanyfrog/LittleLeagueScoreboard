@@ -483,6 +483,9 @@ export function GameWorkspace({ gameId }: { gameId: string }) {
                   {event.eventType === "OutCountAdjusted"
                     ? `Outs changed from ${String(event.payload.previousOuts ?? "?")} to ${String(event.payload.outs ?? "?")}${event.payload.reason ? ` - ${String(event.payload.reason)}` : ""}`
                     : ""}
+                  {event.eventType === "HalfInningStarted"
+                    ? `${String(event.payload.half ?? "").toLowerCase()} of inning ${String(event.payload.inning ?? "?")}${event.payload.reason ? ` - ${String(event.payload.reason)}` : ""}`
+                    : ""}
                   {event.eventType === "FieldingActionRecorded"
                     ? `Pitch result: ${String(event.payload.result).replaceAll("_", " ").toLowerCase()}${
                         pitchCountsByEventId.has(event.eventId)

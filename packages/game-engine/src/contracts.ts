@@ -156,6 +156,15 @@ export interface GameSummary extends Game {
 export interface GameService {
   listGames(context: RequestContext): Promise<GameSummary[]>;
   getGame(gameId: string, context: RequestContext): Promise<GameSummary>;
+  updateGameDetails(
+    gameId: string,
+    details: {
+      scheduledStartUtc?: string;
+      locationName?: string;
+    },
+    context: RequestContext
+  ): Promise<GameSummary>;
+  deleteGame(gameId: string, context: RequestContext): Promise<boolean>;
 }
 
 export interface RosterService {

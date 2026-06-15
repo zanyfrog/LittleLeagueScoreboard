@@ -150,6 +150,10 @@ export function PlateAppearanceConsole({
       )?.payload.actionId as string | undefined;
   }, [events, pendingPitch]);
 
+  useEffect(() => {
+    setPitchZone(pendingPitch?.zone ?? null);
+  }, [pendingPitch?.zone]);
+
   async function post(body: Record<string, unknown>) {
     const response = await fetch(`/api/games/${gameId}/plate-appearance`, {
       method: "POST",
@@ -177,6 +181,7 @@ export function PlateAppearanceConsole({
     const coordinates = zoneCoordinates(zone);
     await post({
       action: "LOCATION",
+      pitchActionId: pendingPitchActionId,
       pitchType: "Unspecified",
       location: `Zone ${zone}`,
       locationZone: zone,
@@ -192,7 +197,20 @@ export function PlateAppearanceConsole({
       result: call,
       pitchActionId: pendingPitchActionId
     });
+    setPitchZone(null);
     if (call === "IN_PLAY") setView("in-play");
+  }
+
+  async function endHalfInning() {
+    const response = await fetch(`/api/games/${gameId}/half-inning`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ reason: "mercy rule" })
+    });
+    if (!response.ok) throw new Error(await response.text());
+    setPitchZone(null);
+    setView("pitch");
+    await onRecorded();
   }
 
   async function undoLastAction() {
@@ -292,12 +310,22 @@ export function PlateAppearanceConsole({
               {pitchers.map((player) => <option key={player.playerId} value={player.playerId}>{player.displayLabel}</option>)}
             </select>
           </label>
-          <button disabled={disabled} onClick={() => void start()}>
-            Batter Up{state.nextBatterLabel ? `: ${state.nextBatterLabel}` : ""}
-          </button>
-          <button className="undo-button" disabled={disabled} onClick={() => void undoLastAction()}>
-            Undo Last Action
-          </button>
+          <div className="between-batter-actions">
+            <button disabled={disabled} onClick={() => void start()}>
+              Batter Up{state.nextBatterLabel ? `: ${state.nextBatterLabel}` : ""}
+            </button>
+            <button className="undo-button" disabled={disabled} onClick={() => void undoLastAction()}>
+              Undo Last Action
+            </button>
+            <button
+              className="end-half-inning-button"
+              disabled={disabled}
+              title="Switch sides without recording another out"
+              onClick={() => void endHalfInning()}
+            >
+              End Half-Inning (Mercy Rule)
+            </button>
+          </div>
         </div>
       ) : (
         <>
@@ -313,7 +341,6 @@ export function PlateAppearanceConsole({
             note={pitchNote}
             disabled={disabled}
             recentPitches={pitchSequence}
-            awaitingResult={Boolean(pendingPitchActionId)}
             onBasePanel={
               <Bases
                 state={baseState}

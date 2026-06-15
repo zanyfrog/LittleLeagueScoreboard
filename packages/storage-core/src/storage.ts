@@ -26,6 +26,7 @@ export interface StorageRepositories {
   audit: AuditRepository;
   gameEvents: GameEventStore;
   transactions: TransactionManager;
+  deleteGameArtifacts(gameId: string): Promise<boolean>;
 }
 
 export interface StorageAdapter extends StorageRepositories {

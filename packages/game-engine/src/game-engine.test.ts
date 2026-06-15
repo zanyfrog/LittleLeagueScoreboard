@@ -226,6 +226,32 @@ describe("Game Engine with JSONL and local I-AM", () => {
       await expect(
         engine.replay.getReplay("game-1", context("unknown-actor"))
       ).rejects.toBeInstanceOf(NotAuthorizedError);
+      await expect(
+        engine.games.deleteGame("game-1", context("unknown-actor"))
+      ).rejects.toBeInstanceOf(NotAuthorizedError);
+      await expect(
+        engine.games.updateGameDetails(
+          "game-1",
+          { locationName: "Hidden Field" },
+          context("unknown-actor")
+        )
+      ).rejects.toBeInstanceOf(NotAuthorizedError);
+      const updatedGame = await engine.games.updateGameDetails(
+        "game-1",
+        {
+          scheduledStartUtc: "2026-06-14T18:30:00.000Z",
+          locationName: "Memorial Field"
+        },
+        adminContext
+      );
+      expect(updatedGame.locationName).toBe("Memorial Field");
+      expect(updatedGame.scheduledStartUtc).toBe(
+        "2026-06-14T18:30:00.000Z"
+      );
+      await expect(
+        engine.games.deleteGame("game-1", adminContext)
+      ).resolves.toBe(true);
+      expect(await storage.games.getById("game-1")).toBeNull();
     } finally {
       await storage.close();
     }

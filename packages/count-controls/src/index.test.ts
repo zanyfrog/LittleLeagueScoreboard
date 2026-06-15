@@ -115,6 +115,50 @@ describe("projectPlateAppearance", () => {
     });
   });
 
+  it("replaces a changed pending location without adding another pitch", () => {
+    const original = event(2, "PitchRecorded", {
+      actionId: "pitch-1",
+      source: "location",
+      locationZone: 8
+    });
+    const replacement = {
+      ...event(3, "PitchRecorded", {
+        actionId: "pitch-1",
+        source: "location",
+        locationZone: 3
+      }),
+      correctsEventId: original.eventId,
+      correctionNote: "Pitch location changed"
+    };
+    const state = projectPlateAppearance([
+      event(1, "PlateAppearanceStarted"),
+      original,
+      replacement
+    ]);
+
+    expect(state.pitchNumber).toBe(1);
+    expect(activeGameEvents([original, replacement])).toEqual([replacement]);
+  });
+
+  it("switches sides and resets outs when a half-inning ends early", () => {
+    const state = projectPlateAppearance([
+      event(1, "HalfInningStarted", { inning: 2, half: "TOP" }),
+      event(2, "RunnerOut"),
+      event(3, "HalfInningStarted", {
+        inning: 2,
+        half: "BOTTOM",
+        reason: "mercy rule"
+      })
+    ]);
+
+    expect(state).toMatchObject({
+      inning: 2,
+      half: "BOTTOM",
+      outs: 0,
+      active: false
+    });
+  });
+
   it("closes the appearance when result-driven consequences are recorded", () => {
     const walk = projectPlateAppearance([
       event(1, "PlateAppearanceStarted"),
