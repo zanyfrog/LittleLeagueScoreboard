@@ -240,7 +240,7 @@ export function PlateAppearanceConsole({
     if (!playResult) return;
     const resolvedLandingZone =
       landingZone ??
-      (playResult === "Ground Out"
+      (playResult === "Ground Out" || playResult === "Fielders choice"
         ? inferLandingZoneFromFieldingSequence(fieldingSequence)
         : null);
     if (!resolvedLandingZone) return;
@@ -250,7 +250,9 @@ export function PlateAppearanceConsole({
       fieldLocation: resolvedLandingZone,
       landingZone: resolvedLandingZone,
       fieldingSequence:
-        playResult === "Ground Out" ? fieldingSequence.trim() : undefined,
+        playResult === "Ground Out" || playResult === "Fielders choice"
+          ? fieldingSequence.trim()
+          : undefined,
       description: playNote
     });
     setLandingZone(null);
@@ -290,7 +292,9 @@ export function PlateAppearanceConsole({
             onZoneChange={setLandingZone}
             onResultChange={(result) => {
               setPlayResult(result);
-              if (result !== "Ground Out") setFieldingSequence("");
+              if (result !== "Ground Out" && result !== "Fielders choice") {
+                setFieldingSequence("");
+              }
             }}
             onFieldingSequenceChange={setFieldingSequence}
             onNoteChange={setPlayNote}

@@ -130,6 +130,66 @@ function hitMovements(
   return movements;
 }
 
+function fieldersChoiceMovements(
+  batterId: string,
+  bases: BaseState
+): RunnerMovement[] {
+  const outRunner =
+    bases.third
+      ? { runner: bases.third, from: "THIRD" as const }
+      : bases.second
+        ? { runner: bases.second, from: "SECOND" as const }
+        : bases.first
+          ? { runner: bases.first, from: "FIRST" as const }
+          : null;
+  const movements: RunnerMovement[] = [];
+
+  if (!outRunner) {
+    movements.push({
+      runnerId: batterId,
+      from: "BATTER",
+      to: "OUT",
+      outcome: "OUT",
+      reason: "fielders choice"
+    });
+    return movements;
+  }
+
+  movements.push({
+    runnerId: outRunner.runner.runnerId,
+    from: outRunner.from,
+    to: "OUT",
+    outcome: "OUT",
+    reason: "fielders choice"
+  });
+  if (bases.second && outRunner.from === "THIRD") {
+    movements.push({
+      runnerId: bases.second.runnerId,
+      from: "SECOND",
+      to: "THIRD",
+      outcome: "SAFE",
+      reason: "advanced on fielders choice"
+    });
+  }
+  if (bases.first && outRunner.from !== "FIRST") {
+    movements.push({
+      runnerId: bases.first.runnerId,
+      from: "FIRST",
+      to: "SECOND",
+      outcome: "SAFE",
+      reason: "advanced on fielders choice"
+    });
+  }
+  movements.push({
+    runnerId: batterId,
+    from: "BATTER",
+    to: "FIRST",
+    outcome: "SAFE",
+    reason: "fielders choice"
+  });
+  return movements;
+}
+
 function inferFieldLocation(sequence?: string): string | undefined {
   const firstFielder = sequence?.trim().match(/^(1|2|3|4|5|6|7|8|9)\b/)?.[1];
   return {
@@ -329,11 +389,11 @@ export async function POST(
     return NextResponse.json({ error: "Unsupported action." }, { status: 400 });
   }
   if (
-    input.result === "Ground Out" &&
+    (input.result === "Ground Out" || input.result === "Fielders choice") &&
     !input.fieldingSequence?.trim()
   ) {
     return NextResponse.json(
-      { error: "Ground outs require a fielding sequence, such as SS to 1B." },
+      { error: "This result requires a fielding sequence, such as SS to 2B." },
       { status: 400 }
     );
   }
@@ -403,6 +463,33 @@ export async function POST(
           outcome: "OUT",
           reason: input.result
         }]
+      },
+      requestContext(runtime.actorId, gameId)
+    );
+    await finishHalfInningIfNeeded(
+      gameId,
+      flow.outs + 1,
+      flow.inning,
+      flow.half,
+      runtime,
+      actionId
+    );
+  }
+  if (input.result === "Fielders choice" && flow.batterId) {
+    await runtime.engine.scoring.recordEvent(
+      {
+        gameId,
+        eventType: "RunnerOut",
+        payload: {
+          reason: input.result,
+          batterId: flow.batterId,
+          fieldingSequence: input.fieldingSequence?.trim(),
+          actionId
+        },
+        runnerMovements: fieldersChoiceMovements(
+          flow.batterId,
+          replay.currentBaseState
+        )
       },
       requestContext(runtime.actorId, gameId)
     );

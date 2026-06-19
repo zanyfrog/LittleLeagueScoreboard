@@ -63,8 +63,10 @@ export function InPlayView({
   onCancel,
   onSave
 }: Props) {
+  const needsFieldingSequence =
+    selectedResult === "Ground Out" || selectedResult === "Fielders choice";
   const inferredZone =
-    selectedResult === "Ground Out"
+    needsFieldingSequence
       ? inferLandingZoneFromFieldingSequence(fieldingSequence)
       : null;
   const effectiveZone = selectedZone ?? inferredZone;
@@ -72,7 +74,7 @@ export function InPlayView({
     disabled ||
     !effectiveZone ||
     !selectedResult ||
-    (selectedResult === "Ground Out" && !fieldingSequence.trim()) ||
+    (needsFieldingSequence && !fieldingSequence.trim()) ||
     (selectedResult === "Other" && !note.trim());
   return (
     <section className="scorekeeper-view in-play-view">
@@ -98,7 +100,7 @@ export function InPlayView({
           <div className="play-result-grid">
             {results.map((result) => <button key={result} className={selectedResult === result ? "selected" : ""} disabled={disabled} onClick={() => onResultChange(result)}>{result}</button>)}
           </div>
-          {selectedResult === "Ground Out" ? (
+          {needsFieldingSequence ? (
             <label className="scorekeeper-note">
               Fielding sequence
               <input
@@ -111,9 +113,13 @@ export function InPlayView({
                   const zone = inferLandingZoneFromFieldingSequence(sequence);
                   if (zone) onZoneChange(zone);
                 }}
-                placeholder="Examples: 7 to 3, SS to 1B"
+                placeholder={
+                  selectedResult === "Fielders choice"
+                    ? "Examples: 6 to 4, SS to 2B"
+                    : "Examples: 7 to 3, SS to 1B"
+                }
               />
-              <small>Required. Numbered notation such as 7 to 3 automatically selects the field location.</small>
+              <small>Required. Numbered notation such as 6 to 4 automatically selects the field location.</small>
             </label>
           ) : null}
           <label className="scorekeeper-note">Play note
