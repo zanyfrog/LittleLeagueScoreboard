@@ -71,6 +71,22 @@ function eventTimestamp(value: string): string {
   }).format(new Date(value));
 }
 
+function canFinalizeGame(
+  inning: number,
+  half: "TOP" | "BOTTOM",
+  expectedInnings: number
+): boolean {
+  return inning > expectedInnings || (inning === expectedInnings && half === "BOTTOM");
+}
+
+function inningScoreDisplay(
+  score: number | null | undefined,
+  unplayedFinalHomeHalf = false
+): string | number {
+  if (score !== null && score !== undefined) return score;
+  return unplayedFinalHomeHalf ? "-" : "";
+}
+
 export function GameWorkspace({ gameId }: { gameId: string }) {
   const [data, setData] = useState<GameData | null>(null);
   const [busy, setBusy] = useState(false);
@@ -251,6 +267,38 @@ export function GameWorkspace({ gameId }: { gameId: string }) {
     }
   }
 
+  async function updateExpectedInnings(expectedInnings: number) {
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/games/${gameId}`, {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          scheduledStartUtc: data?.game.scheduledStartUtc,
+          locationName: data?.game.locationName,
+          expectedInnings
+        })
+      });
+      if (!response.ok) throw new Error(await response.text());
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function finalizeGame() {
+    setBusy(true);
+    try {
+      const response = await fetch(`/api/games/${gameId}/finalize`, {
+        method: "POST"
+      });
+      if (!response.ok) throw new Error(await response.text());
+      await load();
+    } finally {
+      setBusy(false);
+    }
+  }
+
   if (error) return <section className="error">{error}</section>;
   if (!data) return <section className="loading">Loading game workspace...</section>;
 
@@ -260,6 +308,25 @@ export function GameWorkspace({ gameId }: { gameId: string }) {
     (event) => event.eventType === "GameStarted"
   );
   const isFinal = data.game.status === "FINAL";
+  const expectedInnings = data.game.expectedInnings ?? 6;
+  const isBetweenBatters = gameStarted && !data.plateAppearance.active;
+  const visitingLastAtBatComplete = canFinalizeGame(
+    scoreboard.inning,
+    scoreboard.half,
+    expectedInnings
+  );
+  const isTieGame = scoreboard.awayScore === scoreboard.homeScore;
+  const tieAfterExpectedInnings =
+    isTieGame && scoreboard.inning > expectedInnings;
+  const tieAwaitingHomeHalf =
+    isTieGame &&
+    scoreboard.inning === expectedInnings &&
+    scoreboard.half === "BOTTOM";
+  const finalAllowed = visitingLastAtBatComplete && !tieAwaitingHomeHalf;
+  const nextExpectedInnings = Math.max(
+    expectedInnings + 1,
+    scoreboard.inning
+  );
   const lineupSaveMessage =
     lineupSaveState === "saving"
       ? "Saving lineup..."
@@ -269,7 +336,7 @@ export function GameWorkspace({ gameId }: { gameId: string }) {
           ? "Lineup was not saved"
           : "Lineup changes are saved automatically to this game";
   const inningCount = Math.max(
-    6,
+    expectedInnings,
     scoreboard.inning,
     scoreboard.awayInningScores.length,
     scoreboard.homeInningScores.length
@@ -302,7 +369,7 @@ export function GameWorkspace({ gameId }: { gameId: string }) {
           </div>
           {innings.map((inning) => (
             <div className="scoreboard-cell inning-run" key={`away-${inning}`}>
-              {scoreboard.awayInningScores[inning - 1] ?? ""}
+              {inningScoreDisplay(scoreboard.awayInningScores[inning - 1])}
             </div>
           ))}
           <div className="scoreboard-cell total-run">{scoreboard.awayScore}</div>
@@ -313,7 +380,14 @@ export function GameWorkspace({ gameId }: { gameId: string }) {
           </div>
           {innings.map((inning) => (
             <div className="scoreboard-cell inning-run" key={`home-${inning}`}>
-              {scoreboard.homeInningScores[inning - 1] ?? ""}
+              {inningScoreDisplay(
+                scoreboard.homeInningScores[inning - 1],
+                isFinal &&
+                  inning === scoreboard.inning &&
+                  scoreboard.half === "BOTTOM" &&
+                  scoreboard.awayInningScores[inning - 1] !== null &&
+                  scoreboard.awayInningScores[inning - 1] !== undefined
+              )}
             </div>
           ))}
           <div className="scoreboard-cell total-run">{scoreboard.homeScore}</div>
@@ -351,8 +425,67 @@ export function GameWorkspace({ gameId }: { gameId: string }) {
             </div>
           </div>
           <div><span>Status</span><strong>{scoreboard.status.replace("_", " ")}</strong></div>
+          <div><span>Expected</span><strong>{expectedInnings} innings</strong></div>
         </div>
       </section>
+
+      {!isFinal && isBetweenBatters ? (
+        <section className="game-length-controls">
+          <div>
+            <p className="eyebrow">Game length</p>
+            <h2>
+              {tieAfterExpectedInnings
+                ? "Tie after expected innings"
+                : `${expectedInnings} expected innings`}
+            </h2>
+            {tieAfterExpectedInnings ? (
+              <p>
+                The game is tied after regulation. End it as a tie or continue
+                into extra innings.
+              </p>
+            ) : tieAwaitingHomeHalf ? (
+              <p>
+                The game is tied after the visiting half. Finish the home half,
+                then choose extra innings or end as a tie.
+              </p>
+            ) : (
+              <p>
+                Final is available after the visiting team finishes the top of the expected final inning.
+                Coaches can extend the game before continuing.
+              </p>
+            )}
+          </div>
+          <div className="game-length-actions">
+            <button
+              className="finalize-game-button"
+              disabled={busy || !finalAllowed}
+              title={
+                finalAllowed
+                  ? "Mark this game final"
+                  : tieAwaitingHomeHalf
+                    ? "Finish the home half before ending a tied game"
+                    : "The away team has not finished the top of the expected final inning yet"
+              }
+              onClick={() => void finalizeGame().catch((reason) => setError(String(reason)))}
+            >
+              {tieAfterExpectedInnings ? "End Game as Tie" : "Mark Game Final"}
+            </button>
+            <button
+              className="ghost-button"
+              disabled={busy || nextExpectedInnings > 12}
+              onClick={() =>
+                void updateExpectedInnings(nextExpectedInnings).catch(
+                  (reason) => setError(String(reason))
+                )
+              }
+            >
+              {tieAfterExpectedInnings
+                ? `Go to Extra Innings (${nextExpectedInnings})`
+                : `Extend to ${nextExpectedInnings} innings`}
+            </button>
+          </div>
+        </section>
+      ) : null}
 
       {!gameStarted && !isFinal ? (
         <section className="pregame-lineups">
@@ -485,6 +618,9 @@ export function GameWorkspace({ gameId }: { gameId: string }) {
                     : ""}
                   {event.eventType === "HalfInningStarted"
                     ? `${String(event.payload.half ?? "").toLowerCase()} of inning ${String(event.payload.inning ?? "?")}${event.payload.reason ? ` - ${String(event.payload.reason)}` : ""}`
+                    : ""}
+                  {event.eventType === "GameFinalized"
+                    ? `Final after ${String(event.payload.half ?? "").toLowerCase()} of inning ${String(event.payload.inning ?? "?")} | Expected ${String(event.payload.expectedInnings ?? "?")} innings`
                     : ""}
                   {event.eventType === "FieldingActionRecorded"
                     ? `Pitch result: ${String(event.payload.result).replaceAll("_", " ").toLowerCase()}${

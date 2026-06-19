@@ -10,6 +10,7 @@ export async function POST(request: Request) {
     homeTeamId: string;
     scheduledStartUtc?: string;
     locationName?: string;
+    expectedInnings?: number;
   };
   if (input.awayTeamId === input.homeTeamId) {
     return NextResponse.json({ error: "Choose two different teams." }, { status: 400 });
@@ -33,6 +34,13 @@ export async function POST(request: Request) {
       { status: 400 }
     );
   }
+  const expectedInnings = Number(input.expectedInnings ?? 6);
+  if (!Number.isInteger(expectedInnings) || expectedInnings < 1 || expectedInnings > 12) {
+    return NextResponse.json(
+      { error: "Expected innings must be a whole number from 1 to 12." },
+      { status: 400 }
+    );
+  }
   await runtime.storage.games.save(
     {
       gameId,
@@ -43,6 +51,7 @@ export async function POST(request: Request) {
         ? new Date(scheduledStartUtc).toISOString()
         : now,
       locationName: input.locationName?.trim() || undefined,
+      expectedInnings,
       status: "SCHEDULED",
       createdAtUtc: now
     },

@@ -205,6 +205,40 @@ function inferFieldLocation(sequence?: string): string | undefined {
   }[firstFielder ?? ""];
 }
 
+function fieldingSequencePositions(sequence?: string): string[] {
+  const normalized = sequence
+    ?.toUpperCase()
+    .replaceAll("SHORTSTOP", "SS")
+    .replaceAll("SECOND BASE", "2B")
+    .replaceAll("FIRST BASE", "1B")
+    .replaceAll("THIRD BASE", "3B")
+    .replaceAll("PITCHER", "P")
+    .replaceAll("CATCHER", "C")
+    .replaceAll("LEFT FIELD", "LF")
+    .replaceAll("CENTER FIELD", "CF")
+    .replaceAll("RIGHT FIELD", "RF")
+    .match(/\b(?:[1-9]|P|C|1B|2B|3B|SS|LF|LCF|CF|RCF|RF)\b/g);
+  const byNumber: Record<string, string> = {
+    "1": "P",
+    "2": "C",
+    "3": "1B",
+    "4": "2B",
+    "5": "3B",
+    "6": "SS",
+    "7": "LF",
+    "8": "CF",
+    "9": "RF"
+  };
+  return normalized?.map((part) => byNumber[part] ?? part) ?? [];
+}
+
+function isForceAtSecondThenFirst(sequence?: string): boolean {
+  const positions = fieldingSequencePositions(sequence);
+  const secondBaseIndex = positions.indexOf("2B");
+  const firstBaseIndex = positions.indexOf("1B");
+  return secondBaseIndex >= 1 && firstBaseIndex > secondBaseIndex;
+}
+
 async function finishHalfInningIfNeeded(
   gameId: string,
   outsAfterPlay: number,
@@ -446,12 +480,41 @@ export async function POST(
     "Sacrifice Bunt"
   ].includes(input.result);
   if (isOut && flow.batterId) {
+    const isDoublePlay =
+      input.result === "Ground Out" &&
+      Boolean(replay.currentBaseState.first) &&
+      isForceAtSecondThenFirst(input.fieldingSequence) &&
+      flow.outs <= 1;
+    if (isDoublePlay && replay.currentBaseState.first) {
+      await runtime.engine.scoring.recordEvent(
+        {
+          gameId,
+          eventType: "RunnerOut",
+          payload: {
+            reason: "double play",
+            outType: "FORCE_OUT",
+            runnerId: replay.currentBaseState.first.runnerId,
+            fieldingSequence: input.fieldingSequence?.trim(),
+            actionId,
+            completesPlateAppearance: false
+          },
+          runnerMovements: [{
+            runnerId: replay.currentBaseState.first.runnerId,
+            from: "FIRST",
+            to: "OUT",
+            outcome: "OUT",
+            reason: "force out at second"
+          }]
+        },
+        requestContext(runtime.actorId, gameId)
+      );
+    }
     await runtime.engine.scoring.recordEvent(
       {
         gameId,
         eventType: "RunnerOut",
         payload: {
-          reason: input.result,
+          reason: isDoublePlay ? "double play" : input.result,
           batterId: flow.batterId,
           fieldingSequence: input.fieldingSequence?.trim(),
           actionId
@@ -468,7 +531,7 @@ export async function POST(
     );
     await finishHalfInningIfNeeded(
       gameId,
-      flow.outs + 1,
+      flow.outs + (isDoublePlay ? 2 : 1),
       flow.inning,
       flow.half,
       runtime,

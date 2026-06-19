@@ -48,10 +48,12 @@ export function Dashboard() {
   const [opponentPlayers, setOpponentPlayers] = useState("");
   const [scheduledStart, setScheduledStart] = useState(defaultMatchupTime);
   const [locationName, setLocationName] = useState("");
+  const [expectedInnings, setExpectedInnings] = useState(6);
   const [editingTeam, setEditingTeam] = useState(false);
   const [editingGameId, setEditingGameId] = useState("");
   const [editScheduledStart, setEditScheduledStart] = useState("");
   const [editLocationName, setEditLocationName] = useState("");
+  const [editExpectedInnings, setEditExpectedInnings] = useState(6);
   const [savingGameId, setSavingGameId] = useState("");
   const [deletingGameId, setDeletingGameId] = useState("");
   const [error, setError] = useState("");
@@ -112,7 +114,8 @@ export function Dashboard() {
         scheduledStartUtc: scheduledStart
           ? new Date(scheduledStart).toISOString()
           : undefined,
-        locationName
+        locationName,
+        expectedInnings
       })
     });
     if (!response.ok) throw new Error(await response.text());
@@ -151,6 +154,7 @@ export function Dashboard() {
     setEditingGameId(game.gameId);
     setEditScheduledStart(localDateTimeValue(game.scheduledStartUtc));
     setEditLocationName(game.locationName ?? "");
+    setEditExpectedInnings(game.expectedInnings ?? 6);
     setError("");
   }
 
@@ -158,6 +162,7 @@ export function Dashboard() {
     setEditingGameId("");
     setEditScheduledStart("");
     setEditLocationName("");
+    setEditExpectedInnings(6);
   }
 
   async function saveGameDetails(gameId: string) {
@@ -171,7 +176,8 @@ export function Dashboard() {
           scheduledStartUtc: editScheduledStart
             ? new Date(editScheduledStart).toISOString()
             : undefined,
-          locationName: editLocationName
+          locationName: editLocationName,
+          expectedInnings: editExpectedInnings
         })
       });
       if (!response.ok) throw new Error(await response.text());
@@ -248,6 +254,17 @@ export function Dashboard() {
                 onChange={(event) => setLocationName(event.target.value)}
               />
             </label>
+            <label>Expected innings
+              <input
+                type="number"
+                min="1"
+                max="12"
+                value={expectedInnings}
+                onChange={(event) =>
+                  setExpectedInnings(Number(event.target.value))
+                }
+              />
+            </label>
             <button onClick={() => void createGame().catch((reason) => setError(String(reason)))}>Set Matchup</button>
           </div>
           <details className="new-opponent">
@@ -295,6 +312,7 @@ export function Dashboard() {
                 >
                   <strong>{game.awayTeamName} at {game.homeTeamName}</strong>
                   <span>{formatMatchupTime(game.scheduledStartUtc)}</span>
+                  <span>{game.expectedInnings ?? 6} expected innings</span>
                   <small>{game.status.replace("_", " ")}</small>
                 </button>
                 {editingGameId === game.gameId ? (
@@ -314,6 +332,17 @@ export function Dashboard() {
                         placeholder="Field name or street address"
                         onChange={(event) =>
                           setEditLocationName(event.target.value)
+                        }
+                      />
+                    </label>
+                    <label>Expected innings
+                      <input
+                        type="number"
+                        min="1"
+                        max="12"
+                        value={editExpectedInnings}
+                        onChange={(event) =>
+                          setEditExpectedInnings(Number(event.target.value))
                         }
                       />
                     </label>

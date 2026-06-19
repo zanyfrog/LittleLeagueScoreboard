@@ -72,6 +72,7 @@ export function createGameService(
           ...game,
           scheduledStartUtc: details.scheduledStartUtc,
           locationName: details.locationName,
+          expectedInnings: details.expectedInnings ?? game.expectedInnings ?? 6,
           updatedAtUtc: now().toISOString()
         },
         context.actorId

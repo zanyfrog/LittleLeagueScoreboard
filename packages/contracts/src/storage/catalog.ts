@@ -70,6 +70,7 @@ export const gameSchema = z.object({
   timezoneName: z.string().min(1),
   scheduledStartUtc: z.string().datetime().optional(),
   locationName: z.string().min(1).optional(),
+  expectedInnings: z.number().int().positive().default(6),
   status: z.enum(["SCHEDULED", "IN_PROGRESS", "SUSPENDED", "FINAL"]),
   ...utcAuditFields
 });

@@ -50,6 +50,7 @@ export function projectScore(
   let awayScore = 0;
   let inning = 1;
   let half: "TOP" | "BOTTOM" = "TOP";
+  let currentHalfHadBattingActivity = false;
   const homeInningScores: Array<number | null> = [
     null, null, null, null, null, null
   ];
@@ -69,6 +70,18 @@ export function projectScore(
       }
       inning = nextInning;
       half = nextHalf;
+      currentHalfHadBattingActivity = false;
+    }
+    if (
+      event.eventType === "PlateAppearanceStarted" ||
+      event.eventType === "PitchRecorded" ||
+      event.eventType === "FieldingActionRecorded" ||
+      event.eventType === "BallPutInPlay" ||
+      event.eventType === "RunnerMoved" ||
+      event.eventType === "RunnerOut" ||
+      event.eventType === "RunScored"
+    ) {
+      currentHalfHadBattingActivity = true;
     }
     const runs = event.runnerMovements.filter(
       (movement) => movement.to === "HOME" && movement.outcome === "SAFE"
@@ -87,7 +100,9 @@ export function projectScore(
     if (event.eventType === "GameFinalized") {
       const completedScores =
         half === "TOP" ? awayInningScores : homeInningScores;
-      completedScores[inning - 1] ??= 0;
+      if (half === "TOP" || currentHalfHadBattingActivity) {
+        completedScores[inning - 1] ??= 0;
+      }
     }
   }
   return {

@@ -125,4 +125,48 @@ describe("projectScore", () => {
       homeInningScores: [0, null, null, null, null, null]
     });
   });
+
+  it("leaves an unplayed home half blank when the game is finalized", () => {
+    const topSixth = {
+      ...event(1, "HalfInningStarted"),
+      payload: { inning: 6, half: "TOP" }
+    };
+    const bottomSixth = {
+      ...event(2, "HalfInningStarted"),
+      payload: { inning: 6, half: "BOTTOM" }
+    };
+    const final = {
+      ...event(3, "GameFinalized"),
+      payload: { inning: 6, half: "BOTTOM", expectedInnings: 6 }
+    };
+
+    expect(projectScore(game, [topSixth, bottomSixth, final])).toMatchObject({
+      awayInningScores: [0, null, null, null, null, 0],
+      homeInningScores: [null, null, null, null, null, null]
+    });
+  });
+
+  it("records zero when the home team bats scorelessly before final", () => {
+    const topSixth = {
+      ...event(1, "HalfInningStarted"),
+      payload: { inning: 6, half: "TOP" }
+    };
+    const bottomSixth = {
+      ...event(2, "HalfInningStarted"),
+      payload: { inning: 6, half: "BOTTOM" }
+    };
+    const homeBatter = {
+      ...event(3, "PlateAppearanceStarted"),
+      payload: { batterId: "home-1" }
+    };
+    const final = {
+      ...event(4, "GameFinalized"),
+      payload: { inning: 6, half: "BOTTOM", expectedInnings: 6 }
+    };
+
+    expect(projectScore(game, [topSixth, bottomSixth, homeBatter, final])).toMatchObject({
+      awayInningScores: [0, null, null, null, null, 0],
+      homeInningScores: [null, null, null, null, null, 0]
+    });
+  });
 });

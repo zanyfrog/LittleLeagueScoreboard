@@ -62,6 +62,7 @@ export async function PUT(
   const input = (await request.json()) as {
     scheduledStartUtc?: string;
     locationName?: string;
+    expectedInnings?: number;
   };
   const scheduledStartUtc = input.scheduledStartUtc?.trim();
   if (
@@ -73,6 +74,17 @@ export async function PUT(
       { status: 400 }
     );
   }
+  const expectedInnings =
+    input.expectedInnings === undefined ? undefined : Number(input.expectedInnings);
+  if (
+    expectedInnings !== undefined &&
+    (!Number.isInteger(expectedInnings) || expectedInnings < 1 || expectedInnings > 12)
+  ) {
+    return NextResponse.json(
+      { error: "Expected innings must be a whole number from 1 to 12." },
+      { status: 400 }
+    );
+  }
   const runtime = await getRuntime();
   const game = await runtime.engine.games.updateGameDetails(
     gameId,
@@ -80,7 +92,8 @@ export async function PUT(
       scheduledStartUtc: scheduledStartUtc
         ? new Date(scheduledStartUtc).toISOString()
         : undefined,
-      locationName: input.locationName?.trim() || undefined
+      locationName: input.locationName?.trim() || undefined,
+      expectedInnings
     },
     requestContext(runtime.actorId, gameId)
   );

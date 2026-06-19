@@ -161,6 +161,7 @@ export interface GameService {
     details: {
       scheduledStartUtc?: string;
       locationName?: string;
+      expectedInnings?: number;
     },
     context: RequestContext
   ): Promise<GameSummary>;

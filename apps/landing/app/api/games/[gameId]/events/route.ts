@@ -4,6 +4,7 @@ import { gameEventTypeSchema, runnerMovementSchema } from "@ll-score/contracts";
 import { getRuntime, requestContext } from "@/lib/runtime";
 
 const manualEventTypes = [
+  "GameStarted",
   "HalfInningStarted",
   "PlateAppearanceStarted",
   "PitchRecorded",
@@ -14,7 +15,8 @@ const manualEventTypes = [
   "RunnerOut",
   "OutCountAdjusted",
   "RunScored",
-  "PitcherChanged"
+  "PitcherChanged",
+  "GameFinalized"
 ] as const;
 type ManualEventType = (typeof manualEventTypes)[number];
 

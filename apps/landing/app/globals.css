@@ -25,7 +25,7 @@
   .game-tabs button.active { background: var(--cream); color: var(--ink); border-color: var(--cream); }
   .game-tabs span { margin: 0 6px; font-size: .7rem; text-transform: uppercase; }
   .pregame-builder, .pregame-lineups { background: #0c1c14dd; border: 1px solid var(--line); border-radius: 18px; padding: 24px; }
-  .team-picker { display: grid; grid-template-columns: 1fr auto 1fr 1.15fr 1.2fr auto; gap: 16px; align-items: end; margin-top: 20px; }
+  .team-picker { display: grid; grid-template-columns: 1fr auto 1fr 1.15fr 1.2fr .65fr auto; gap: 16px; align-items: end; margin-top: 20px; }
   .team-picker label, .opponent-form label { display: grid; gap: 7px; color: #a9baae; font-size: .75rem; text-transform: uppercase; letter-spacing: .08em; }
   .team-picker input { min-width: 0; background: #07110d; color: #f4f7ef; border: 1px solid #3b5445; border-radius: 7px; padding: 9px; font: inherit; color-scheme: dark; }
   .edit-team-button { background: var(--orange); }
@@ -83,7 +83,7 @@
   .inning-run { font: 700 1.15rem Georgia, serif; }
   .total-heading, .total-run { border-right: 0; background: #cfdbcb; }
   .total-run { font: 700 1.55rem Georgia, serif; }
-  .scoreboard-at-bat { display: grid; grid-template-columns: 1.5fr 1.5fr repeat(4, 1fr); gap: 8px; margin-top: 12px; }
+  .scoreboard-at-bat { display: grid; grid-template-columns: 1.5fr 1.5fr repeat(5, 1fr); gap: 8px; margin-top: 12px; }
   .scoreboard-at-bat div { background: #e7ebe3; border: 1px solid #cad0c5; border-radius: 9px; padding: 9px 10px; }
   .scoreboard-at-bat span { display: block; text-transform: uppercase; letter-spacing: .1em; font-size: .58rem; color: #667268; }
   .scoreboard-at-bat strong { display: block; margin-top: 3px; font-size: .88rem; }
@@ -105,6 +105,12 @@
   .completed-game-banner { background: #0c1c14dd; border: 1px solid var(--line); border-radius: 16px; padding: 22px; margin-bottom: 18px; text-align: center; }
   .completed-game-banner h2 { margin: 0; font-family: Georgia, serif; }
   .completed-game-banner p:last-child { color: #a9baae; }
+  .game-length-controls { display: flex; justify-content: space-between; align-items: center; gap: 18px; background: #0c1c14dd; border: 1px solid var(--line); border-radius: 16px; padding: 18px 20px; margin-bottom: 18px; }
+  .game-length-controls h2 { margin: 0; font-family: Georgia, serif; }
+  .game-length-controls p:last-child { margin-bottom: 0; color: #a9baae; }
+  .game-length-actions { display: grid; gap: 8px; min-width: 210px; }
+  .game-length-actions .ghost-button { margin-top: 0; }
+  .finalize-game-button { background: var(--orange); }
   .scorekeeper-tabs { display: flex; gap: 8px; margin: 18px 0; }
   .scorekeeper-tabs button { flex: 1; background: #13271d; color: #a9baae; border: 1px solid var(--line); }
   .scorekeeper-tabs button.active { background: var(--cream); color: var(--ink); }
@@ -234,6 +240,19 @@
   .timeline-heading-actions > span { color: #91a698; }
   .event-log-editor { margin: 18px 0; padding: 16px; background: #091810; border: 1px solid var(--line); border-radius: 12px; }
   .event-editor-top { display: grid; grid-template-columns: minmax(240px, 1fr) auto; align-items: end; gap: 10px; }
+  .event-editor-top h3 { margin: 0; font-family: Georgia, serif; }
+  .event-editor-top .ghost-button { margin-top: 0; }
+  .event-row-list { display: grid; gap: 8px; margin-top: 14px; max-height: 330px; overflow-y: auto; padding-right: 6px; }
+  .event-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 10px 12px; background: #13271d; border: 1px solid transparent; border-radius: 9px; }
+  .event-row.selected { border-color: var(--lime); box-shadow: 0 0 0 2px #b9db6722; }
+  .event-row strong, .event-row span, .event-row small { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .event-row span { margin-top: 3px; color: #9cb0a2; font-size: .72rem; }
+  .event-row small { margin-top: 4px; color: var(--orange); text-transform: uppercase; letter-spacing: .08em; font-size: .58rem; }
+  .event-row-actions { display: flex; gap: 6px; }
+  .event-icon-button { width: 30px; height: 30px; display: grid; place-items: center; padding: 0; border-radius: 50%; background: #1c422e; color: #dff2e4; border: 1px solid #557861; }
+  .event-icon-button.delete { background: #4d261f; color: #ffd9d2; border-color: #864c43; }
+  .event-icon-button svg { width: 15px; height: 15px; fill: currentColor; }
+  .event-editor-form { margin-top: 14px; padding-top: 14px; border-top: 1px solid var(--line); }
   .event-editor-fields { display: grid; grid-template-columns: 1fr 1fr 2fr; gap: 10px; margin-top: 12px; }
   .event-log-editor label { display: grid; gap: 6px; color: #a9baae; font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; }
   .event-log-editor input, .event-log-editor textarea { min-width: 0; background: #07110d; color: #f4f7ef; border: 1px solid #3b5445; border-radius: 7px; padding: 8px; font: inherit; }
@@ -241,6 +260,7 @@
   .event-json-fields textarea { min-height: 130px; resize: vertical; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .76rem; }
   .event-editor-help { margin: 10px 0; color: #8fa797; font-size: .75rem; }
   .event-editor-actions { display: flex; justify-content: flex-end; align-items: center; gap: 8px; }
+  .event-editor-actions .ghost-button { margin-top: 0; }
   .event-editor-actions span { margin-right: auto; color: var(--lime); font-size: .78rem; }
   .loading, .error, .empty { padding: 30px; border: 1px solid var(--line); border-radius: 14px; color: #b8c9bd; }
   .error { color: #ffb0a0; }
@@ -266,7 +286,12 @@
   .pitch-entry { grid-template-columns: 1fr; }
   .view-matchup, .pitch-view-grid, .in-play-grid { grid-template-columns: 1fr; }
   .pitch-actions { grid-template-columns: 1fr 1fr; }
+  .game-length-controls { align-items: stretch; flex-direction: column; }
+  .game-length-actions { min-width: 0; }
   .timeline li { grid-template-columns: 1fr; }
   .timeline .section-heading, .timeline-heading-actions { align-items: stretch; flex-direction: column; }
-  .event-editor-top, .event-editor-fields, .event-json-fields { grid-template-columns: 1fr; }
+  .event-editor-top, .event-editor-fields, .event-json-fields, .event-row { grid-template-columns: 1fr; }
+  .event-row-actions { justify-content: flex-end; }
+  .event-editor-actions { align-items: stretch; flex-direction: column; }
+  .event-editor-actions span { margin-right: 0; }
 }

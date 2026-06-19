@@ -240,7 +240,8 @@ describe("Game Engine with JSONL and local I-AM", () => {
         "game-1",
         {
           scheduledStartUtc: "2026-06-14T18:30:00.000Z",
-          locationName: "Memorial Field"
+          locationName: "Memorial Field",
+          expectedInnings: 7
         },
         adminContext
       );
@@ -248,6 +249,7 @@ describe("Game Engine with JSONL and local I-AM", () => {
       expect(updatedGame.scheduledStartUtc).toBe(
         "2026-06-14T18:30:00.000Z"
       );
+      expect(updatedGame.expectedInnings).toBe(7);
       await expect(
         engine.games.deleteGame("game-1", adminContext)
       ).resolves.toBe(true);

@@ -256,6 +256,49 @@ describe("projectPlateAppearance", () => {
     expect(flow.active).toBe(true);
   });
 
+  it("counts both outs on a double play while advancing the batting order once", () => {
+    const game = {
+      gameId: "game-1",
+      homeTeamId: "home",
+      awayTeamId: "away",
+      timezoneName: "America/New_York",
+      status: "IN_PROGRESS" as const,
+      createdAtUtc: "2026-06-12T00:00:00.000Z"
+    };
+    const roster = [
+      {
+        gameId: "game-1", teamId: "away", playerId: "a1",
+        displayNameSnapshot: "Away One", teamNameSnapshot: "Away",
+        battingOrder: 1, initialPosition: "P" as const, isPresent: true
+      },
+      {
+        gameId: "game-1", teamId: "away", playerId: "a2",
+        displayNameSnapshot: "Away Two", teamNameSnapshot: "Away",
+        battingOrder: 2, initialPosition: "C" as const, isPresent: true
+      }
+    ];
+    const events = [
+      event(1, "PlateAppearanceStarted", {
+        battingTeamId: "away",
+        batterId: "a1"
+      }),
+      event(2, "RunnerOut", {
+        reason: "double play",
+        runnerId: "runner-on-first",
+        completesPlateAppearance: false
+      }),
+      event(3, "RunnerOut", {
+        reason: "double play",
+        batterId: "a1"
+      })
+    ];
+
+    const flow = projectGameFlow(game, roster, events);
+    expect(flow.outs).toBe(2);
+    expect(flow.nextBatterId).toBe("a2");
+    expect(flow.active).toBe(false);
+  });
+
   it("uses an explicit out-count adjustment for scorer corrections", () => {
     const state = projectPlateAppearance([
       event(1, "RunnerOut"),
